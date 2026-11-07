@@ -19,10 +19,10 @@ package application
 
 // Plate information
 const (
-	Name     = "Sshwifty"
-	FullName = "Sshwifty Web SSH Client"
+	Name     = "Termivane"
+	FullName = "Termivane Web SSH & SFTP"
 	Author   = "Ni Rui <ranqus@gmail.com>"
-	URL      = "https://github.com/nirui/sshwifty"
+	URL      = "https://github.com/Larry-Labs/sshwifty"
 )
 
 // Banner message

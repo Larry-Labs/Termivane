@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import * as iconv from "iconv-lite";
+import { IconvDecoder } from "../iconv/decoder.js";
+import { IconvEncoder } from "../iconv/encoder.js";
 import * as color from "../commands/color.js";
 import * as common from "../commands/common.js";
 import * as reader from "../stream/reader.js";
@@ -26,13 +27,6 @@ class Control {
   constructor(data, color) {
     this.background = color;
     this.charset = data.charset;
-
-    this.charsetDecoder = (d) => {
-      return iconv.decode(d, this.charset);
-    };
-    this.charsetEncoder = (dStr) => {
-      return iconv.encode(dStr, this.charset);
-    };
 
     this.closed = false;
     this.enable = false;
@@ -46,10 +40,21 @@ class Control {
     this.reconnectToken = null;
 
     let self = this;
+    this.charsetEncoder = new IconvEncoder(this.sender, this.charset);
+    // stdout and stderr are independent byte streams: do not join partial
+    // characters from one stream with bytes from the other.
+    const stdoutDecoder = new IconvDecoder(
+      (s) => self.subs.resolve(s),
+      this.charset,
+    );
+    const stderrDecoder = new IconvDecoder(
+      (s) => self.subs.resolve(s),
+      this.charset,
+    );
 
     data.events.place("stdout", async (rd) => {
       try {
-        self.subs.resolve(self.charsetDecoder(await reader.readCompletely(rd)));
+        stdoutDecoder.write(await reader.readCompletely(rd));
       } catch (e) {
         // Do nothing
       }
@@ -57,7 +62,7 @@ class Control {
 
     data.events.place("stderr", async (rd) => {
       try {
-        self.subs.resolve(self.charsetDecoder(await reader.readCompletely(rd)));
+        stderrDecoder.write(await reader.readCompletely(rd));
       } catch (e) {
         // Do nothing
       }
@@ -79,6 +84,8 @@ class Control {
 
     data.events.place("completed", () => {
       self.closed = true;
+      stdoutDecoder.close();
+      stderrDecoder.close();
       self.background.forget();
       if (self.sftpClient) {
         self.sftpClient.close();
@@ -119,7 +126,7 @@ class Control {
       return;
     }
 
-    return this.sender(this.charsetEncoder(data));
+    return this.charsetEncoder.write(data);
   }
 
   sendBinary(data) {

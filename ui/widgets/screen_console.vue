@@ -20,7 +20,15 @@
 <template>
   <div class="screen-console">
     <div class="console-main-area">
-      <div v-if="filePanel" class="file-panel" :style="{ width: filePanelWidth + 'px', minWidth: filePanelWidth + 'px', maxWidth: filePanelWidth + 'px' }">
+      <div
+        v-if="filePanel"
+        class="file-panel"
+        :style="{
+          width: filePanelWidth + 'px',
+          minWidth: filePanelWidth + 'px',
+          maxWidth: filePanelWidth + 'px',
+        }"
+      >
         <div class="file-panel-topbar">
           <div class="file-panel-breadcrumb">
             <a
@@ -30,19 +38,44 @@
               class="breadcrumb-item"
               :class="{ 'breadcrumb-root': idx === 0 }"
               @click="navigateToSegment(idx)"
-            >{{ seg }}</a>
+              >{{ seg }}</a
+            >
           </div>
           <div class="file-panel-actions">
-            <a class="fp-btn" href="javascript:;" @click="refreshFiles" title="Refresh">↻</a>
-            <a class="fp-btn" href="javascript:;" @click="triggerUpload" title="Upload">↑</a>
-            <a class="fp-btn" href="javascript:;" @click="createDirectory" title="New Folder">+</a>
-            <a class="fp-btn fp-btn-close" href="javascript:;" @click="toggleFilePanel" title="Close">✕</a>
+            <a
+              class="fp-btn"
+              href="javascript:;"
+              title="Refresh"
+              @click="refreshFiles"
+              >↻</a
+            >
+            <a
+              class="fp-btn"
+              href="javascript:;"
+              title="Upload"
+              @click="triggerUpload"
+              >↑</a
+            >
+            <a
+              class="fp-btn"
+              href="javascript:;"
+              title="New Folder"
+              @click="createDirectory"
+              >+</a
+            >
+            <a
+              class="fp-btn fp-btn-close"
+              href="javascript:;"
+              title="Close"
+              @click="toggleFilePanel"
+              >✕</a
+            >
           </div>
           <input
             ref="fileUploadInput"
             type="file"
             multiple
-            style="display:none"
+            style="display: none"
             @change="handleFileSelect"
           />
         </div>
@@ -63,25 +96,33 @@
             v-for="f in sortedFiles"
             :key="f.name"
             class="file-item"
-            :class="{'file-item-dir': f.isDir}"
+            :class="{ 'file-item-dir': f.isDir }"
             @click="fileItemClick(f)"
           >
-            <span class="file-icon" :class="f.isDir ? 'file-icon-dir' : 'file-icon-file'">{{ f.isDir ? '/' : ' ' }}</span>
+            <span
+              class="file-icon"
+              :class="f.isDir ? 'file-icon-dir' : 'file-icon-file'"
+              >{{ f.isDir ? "/" : " " }}</span
+            >
             <span class="file-name" :title="f.name">{{ f.name }}</span>
-            <span class="file-size">{{ f.isDir ? '' : formatSize(f.size) }}</span>
+            <span class="file-size">{{
+              f.isDir ? "" : formatSize(f.size)
+            }}</span>
             <a
               v-if="!f.isDir"
               class="file-action"
               href="javascript:;"
-              @click.stop="downloadFile(f)"
               title="Download"
-            >Save</a>
+              @click.stop="downloadFile(f)"
+              >Save</a
+            >
             <a
               class="file-action file-action-delete"
               href="javascript:;"
-              @click.stop="deleteItem(f)"
               title="Delete"
-            >Del</a>
+              @click.stop="deleteItem(f)"
+              >Del</a
+            >
           </div>
         </div>
 
@@ -90,24 +131,37 @@
           <div v-for="(t, idx) in transfers" :key="idx" class="transfer-item">
             <div class="transfer-info">
               <span class="transfer-name" :title="t.name">{{ t.name }}</span>
-              <span v-if="t.status === 'queued'" class="transfer-status transfer-queued">queued</span>
-              <span v-else-if="t.progress < 0" class="transfer-status transfer-failed">failed</span>
+              <span
+                v-if="t.status === 'queued'"
+                class="transfer-status transfer-queued"
+                >queued</span
+              >
+              <span
+                v-else-if="t.progress < 0"
+                class="transfer-status transfer-failed"
+                >failed</span
+              >
               <span v-else class="transfer-status transfer-active">
                 {{ t.progress }}%
-                <span v-if="t.speed > 0" class="transfer-speed">{{ formatSpeed(t.speed) }}</span>
+                <span v-if="t.speed > 0" class="transfer-speed">{{
+                  formatSpeed(t.speed)
+                }}</span>
               </span>
             </div>
-            <div v-if="t.status !== 'queued' && t.progress >= 0" class="transfer-bar-bg">
-              <div class="transfer-bar-fill" :style="{ width: t.progress + '%' }"></div>
+            <div
+              v-if="t.status !== 'queued' && t.progress >= 0"
+              class="transfer-bar-bg"
+            >
+              <div
+                class="transfer-bar-fill"
+                :style="{ width: t.progress + '%' }"
+              ></div>
             </div>
           </div>
         </div>
       </div>
 
-      <div
-        class="file-panel-resize"
-        @mousedown="startResize"
-      ></div>
+      <div class="file-panel-resize" @mousedown="startResize"></div>
 
       <div
         class="console-console-wrapper"
@@ -115,6 +169,43 @@
         @dragleave.prevent="onDragLeave"
         @drop.prevent="onDrop"
       >
+        <div
+          v-if="
+            clipboardState.pending ||
+            clipboardState.allowed ||
+            clipboardState.error
+          "
+          class="console-clipboard"
+          role="status"
+        >
+          <template v-if="clipboardState.pending">
+            <span
+              >Remote terminal requests permission to copy to your
+              clipboard.</span
+            >
+            <button type="button" @click="term.clipboard.reject()">
+              Don't copy
+            </button>
+            <button type="button" @click="term.clipboard.allow()">
+              Copy once
+            </button>
+            <button type="button" @click="term.clipboard.allow(true)">
+              Allow for this session
+            </button>
+          </template>
+          <template v-else-if="clipboardState.allowed">
+            <span>Remote clipboard copies are allowed for this terminal.</span>
+            <button type="button" @click="term.clipboard.revoke()">
+              Stop allowing
+            </button>
+          </template>
+          <template v-else>
+            <span>{{ clipboardState.error }}</span>
+            <button type="button" @click="term.clipboard.reject()">
+              Dismiss
+            </button>
+          </template>
+        </div>
         <div
           v-if="toolbar"
           class="console-toolbar"
@@ -154,11 +245,15 @@
               <h3 class="tb-title">Files</h3>
               <ul class="lst-nostyle">
                 <li>
-                  <a class="tb-item" href="javascript:;" @click="toggleFilePanel">
+                  <a
+                    class="tb-item"
+                    href="javascript:;"
+                    @click="toggleFilePanel"
+                  >
                     <span
                       class="tb-key-icon tb-key-resize-icon icon icon-keyboardkey1 icon-iconed-bottom1"
                     >
-                      {{ filePanel ? 'Hide' : 'Show' }}
+                      {{ filePanel ? "Hide" : "Show" }}
                     </span>
                   </a>
                 </li>
@@ -188,10 +283,7 @@
           </div>
         </div>
 
-        <div
-          v-if="dragOver"
-          class="drop-overlay"
-        >
+        <div v-if="dragOver" class="drop-overlay">
           <div class="drop-overlay-text">Drop files to upload</div>
         </div>
 
@@ -204,7 +296,9 @@
           <div class="console-loading">
             <div class="console-loading-frame">
               <div class="console-loading-icon"></div>
-              <div class="console-loading-message">Initializing console ...</div>
+              <div class="console-loading-message">
+                Initializing console ...
+              </div>
             </div>
           </div>
         </div>
@@ -214,7 +308,8 @@
           class="sftp-pill"
           href="javascript:;"
           @click="toggleFilePanel"
-        >SFTP</a>
+          >SFTP</a
+        >
       </div>
     </div>
   </div>
@@ -224,13 +319,16 @@
 import FontFaceObserver from "fontfaceobserver";
 import { Terminal } from "@xterm/xterm";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { FitAddon } from "@xterm/addon-fit";
+import { ClipboardAddon, Base64 } from "@xterm/addon-clipboard";
+import { ClipboardProvider } from "./clipboard.js";
 import { isNumber } from "../commands/common.js";
 import { consoleScreenKeys } from "./screen_console_keys.js";
 
 import "./screen_console.css";
+import "./clipboard.css";
 import "@xterm/xterm/css/xterm.css";
 
 const termTypeFaces = "Hack, PureNerdFont";
@@ -257,19 +355,23 @@ function webglSupported() {
     if (typeof window.WebGL2RenderingContext !== "function") {
       return false;
     }
-    return document.createElement('canvas').getContext('webgl') &&
-      document.createElement('canvas').getContext('webgl2');
-  } catch(e) {
+    return (
+      document.createElement("canvas").getContext("webgl") &&
+      document.createElement("canvas").getContext("webgl2")
+    );
+  } catch {
+    // Canvas creation may be blocked; use the terminal's default renderer.
   }
   return false;
 }
 
 class Term {
-  constructor(control) {
+  constructor(control, clipboardChanged) {
     const resizeDelayInterval = 500;
 
     this.control = control;
     this.closed = false;
+    this.clipboard = new ClipboardProvider(clipboardChanged);
     this.fontSize = this._loadFontSize();
     this.term = new Terminal({
       allowProposedApi: true,
@@ -372,12 +474,15 @@ class Term {
     this.term.loadAddon(this.fit);
     this.term.loadAddon(new WebLinksAddon());
     this.term.loadAddon(new Unicode11Addon());
+    this.term.loadAddon(new ClipboardAddon(new Base64(), this.clipboard));
     try {
       if (webglSupported()) {
         this.term.loadAddon(new WebglAddon());
       }
-    } catch(e) {}
-    this.term.unicode.activeVersion = '11';
+    } catch (e) {
+      process.env.NODE_ENV === "development" && console.debug(e);
+    }
+    this.term.unicode.activeVersion = "11";
     this.refit();
   }
 
@@ -440,7 +545,9 @@ class Term {
   _saveFontSize() {
     try {
       localStorage.setItem("sshwifty_font_size", String(this.fontSize));
-    } catch (_e) { /* localStorage unavailable */ }
+    } catch (_e) {
+      /* localStorage unavailable */
+    }
   }
 
   _loadFontSize() {
@@ -452,7 +559,9 @@ class Term {
           return size;
         }
       }
-    } catch (_e) { /* localStorage unavailable */ }
+    } catch (_e) {
+      /* localStorage unavailable */
+    }
     return termDefaultFontSize;
   }
 
@@ -499,6 +608,7 @@ class Term {
       return;
     }
     this.closed = true;
+    this.clipboard.dispose();
     try {
       this.term.dispose();
     } catch (e) {
@@ -545,7 +655,11 @@ export default {
   data() {
     return {
       screenKeys: consoleScreenKeys,
-      term: new Term(this.control),
+      term: new Term(this.control, (state) => {
+        this.clipboardState = state;
+        this.$nextTick(() => this.fit());
+      }),
+      clipboardState: { pending: false, allowed: false, error: "" },
       typefaces: termTypeFaces,
       runner: null,
       eventHandlers: {
@@ -571,8 +685,12 @@ export default {
       return ["/"].concat(parts);
     },
     sortedFiles() {
-      const dirs = this.files.filter((f) => f.isDir).sort((a, b) => a.name.localeCompare(b.name));
-      const regular = this.files.filter((f) => !f.isDir).sort((a, b) => a.name.localeCompare(b.name));
+      const dirs = this.files
+        .filter((f) => f.isDir)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const regular = this.files
+        .filter((f) => !f.isDir)
+        .sort((a, b) => a.name.localeCompare(b.name));
       return dirs.concat(regular);
     },
   },
@@ -602,12 +720,16 @@ export default {
     },
     filePanel() {
       const self = this;
-      setTimeout(() => { self.fit(); }, 50);
+      setTimeout(() => {
+        self.fit();
+      }, 50);
     },
     hasSFTP() {
       const self = this;
       this.$nextTick(() => {
-        setTimeout(() => { self.fit(); }, 50);
+        setTimeout(() => {
+          self.fit();
+        }, 50);
       });
     },
   },
@@ -638,8 +760,10 @@ export default {
           onSuccess(await self.loadRemoteFont(typefaces, timeout));
           return;
         } catch (e) {
-          await new Promise(res => {
-            window.setTimeout(() => { res(); }, timeout);
+          await new Promise((res) => {
+            window.setTimeout(() => {
+              res();
+            }, timeout);
           });
         }
       }
@@ -851,14 +975,20 @@ export default {
     },
     fileItemClick(f) {
       if (f.isDir) {
-        const newPath = this.currentPath === "/" ? "/" + f.name : this.currentPath + "/" + f.name;
+        const newPath =
+          this.currentPath === "/"
+            ? "/" + f.name
+            : this.currentPath + "/" + f.name;
         this.currentPath = newPath;
         this.refreshFiles();
       }
     },
     async downloadFile(f) {
       if (!this.control || !this.control.sessionID) return;
-      const filePath = this.currentPath === "/" ? "/" + f.name : this.currentPath + "/" + f.name;
+      const filePath =
+        this.currentPath === "/"
+          ? "/" + f.name
+          : this.currentPath + "/" + f.name;
       try {
         const client = await this.control.getSFTPClient();
         const blob = await client.download(filePath);
@@ -876,10 +1006,13 @@ export default {
     },
     async deleteItem(f) {
       const msg = f.isDir
-        ? "Delete folder \"" + f.name + "\" and ALL its contents?"
-        : "Delete file \"" + f.name + "\"?";
+        ? 'Delete folder "' + f.name + '" and ALL its contents?'
+        : 'Delete file "' + f.name + '"?';
       if (!confirm(msg)) return;
-      const itemPath = this.currentPath === "/" ? "/" + f.name : this.currentPath + "/" + f.name;
+      const itemPath =
+        this.currentPath === "/"
+          ? "/" + f.name
+          : this.currentPath + "/" + f.name;
       this.fileLoading = true;
       try {
         const client = await this.control.getSFTPClient();
@@ -893,7 +1026,8 @@ export default {
     async createDirectory() {
       const name = prompt("New directory name:");
       if (!name) return;
-      const dirPath = this.currentPath === "/" ? "/" + name : this.currentPath + "/" + name;
+      const dirPath =
+        this.currentPath === "/" ? "/" + name : this.currentPath + "/" + name;
       this.fileLoading = true;
       try {
         const client = await this.control.getSFTPClient();
@@ -969,7 +1103,8 @@ export default {
     formatSize(bytes) {
       if (bytes < 1024) return bytes + " B";
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-      if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+      if (bytes < 1024 * 1024 * 1024)
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB";
       return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
     },
     formatSpeed(bytesPerSec) {

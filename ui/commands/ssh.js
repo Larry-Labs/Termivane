@@ -28,10 +28,15 @@ import * as history from "./history.js";
 import * as presets from "./presets.js";
 import * as strings from "./string.js";
 import { credentials } from "./credentials.js";
+import {
+  parseKeyboardChallenge,
+  encodeKeyboardAnswers,
+} from "./keyboard_interactive.js";
 
 const AUTHMETHOD_NONE = 0x00;
 const AUTHMETHOD_PASSPHRASE = 0x01;
 const AUTHMETHOD_PRIVATE_KEY = 0x02;
+const AUTHMETHOD_KEYBOARD_INTERACTIVE = 0x04;
 
 const COMMAND_ID = 0x00;
 
@@ -390,7 +395,7 @@ const initialFieldDef = {
       ' font-style: normal;">ssh-keygen -f /path/to/private_key -p</i><br />' +
       "<br />" +
       "It is strongly recommended to use one Private Key per SSH server if " +
-      "the Private Key will be submitted to Sshwifty. To generate a new SSH " +
+      "the Private Key will be submitted to Termivane. To generate a new SSH " +
       'key pair, use command <i style="color: #fff; font-style: normal;">' +
       "ssh-keygen -o -f /path/to/my_server_key</i> and then deploy the " +
       'generated <i style="color: #fff; font-style: normal;">' +
@@ -455,7 +460,7 @@ const initialFieldDef = {
       "cause the login to fail",
     type: "radio",
     value: "",
-    example: "Password,Private Key,None",
+    example: "Password,Private Key,Keyboard Interactive,None",
     readonly: false,
     suggestions(input) {
       return [];
@@ -464,6 +469,7 @@ const initialFieldDef = {
       switch (d) {
         case "Password":
         case "Private Key":
+        case "Keyboard Interactive":
         case "None":
           return "";
 
@@ -525,6 +531,9 @@ function getAuthMethodFromStr(d) {
 
     case "Private Key":
       return AUTHMETHOD_PRIVATE_KEY;
+
+    case "Keyboard Interactive":
+      return AUTHMETHOD_KEYBOARD_INTERACTIVE;
 
     default:
       throw new Exception("Unknown Auth method");
@@ -761,14 +770,19 @@ class Wizard {
       },
       async "connect.credential"(rd, sd) {
         self.step.resolve(
-          self.stepCredentialPrompt(rd, sd, config, (newCred, fromPreset) => {
-            sessionData.credential = newCred;
+          await self.stepCredentialPrompt(
+            rd,
+            sd,
+            config,
+            (newCred, fromPreset) => {
+              sessionData.credential = newCred;
 
-            // Save the credential if the credential was from a preset
-            if (fromPreset && keptSessions.indexOf("credential") < 0) {
-              keptSessions.push("credential");
-            }
-          }),
+              // Save the credential if the credential was from a preset
+              if (fromPreset && keptSessions.indexOf("credential") < 0) {
+                keptSessions.push("credential");
+              }
+            },
+          ),
         );
       },
       "@stdout"(rd) {},
@@ -917,8 +931,52 @@ class Wizard {
     );
   }
 
+  async stepKeyboardPrompt(rd, sd) {
+    const challenge = parseKeyboardChallenge(await reader.readCompletely(rd));
+    const fields = challenge.questions.map((question, i) => ({
+      name: `${i + 1}: ${question}`,
+      type: challenge.echo[i] ? "text" : "password",
+      value: "",
+      readonly: false,
+      verify: () => "",
+    }));
+    const respond = (values) => {
+      const answers = fields.map(
+        (field) => values[field.name.toLowerCase()] || "",
+      );
+      sd.send(
+        CLIENT_CONNECT_RESPOND_CREDENTIAL,
+        encodeKeyboardAnswers(answers),
+      );
+      this.step.resolve(this.stepContinueWaitForEstablishWait());
+    };
+    // Servers may send an informational round with no questions.
+    if (!fields.length) {
+      sd.send(CLIENT_CONNECT_RESPOND_CREDENTIAL, encodeKeyboardAnswers([]));
+      return this.stepContinueWaitForEstablishWait();
+    }
+    return command.prompt(
+      challenge.name || "Keyboard-interactive authentication",
+      challenge.instruction ||
+        "Respond to the server's authentication questions",
+      "Authenticate",
+      respond,
+      () => {
+        sd.close();
+        this.step.resolve(
+          command.wait("Cancelling login", "Cancelling authentication"),
+        );
+      },
+      fields,
+    );
+  }
+
   async stepCredentialPrompt(rd, sd, config, newCredential) {
     const self = this;
+
+    if (config.auth === AUTHMETHOD_KEYBOARD_INTERACTIVE) {
+      return self.stepKeyboardPrompt(rd, sd);
+    }
 
     let fields = [];
 

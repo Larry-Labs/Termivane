@@ -25,17 +25,17 @@ func newSFTPSocketCtl(cfg configuration.Server) sftpSocket {
 	return sftpSocket{
 		upgrader: websocket.Upgrader{
 			HandshakeTimeout: cfg.InitialTimeout,
-		CheckOrigin: func(r *http.Request) bool {
-			origin := r.Header.Get("Origin")
-			if origin == "" {
-				return true
-			}
-			u, err := url.Parse(origin)
-			if err != nil {
-				return false
-			}
-			return u.Host == r.Host
-		},
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true
+				}
+				u, err := url.Parse(origin)
+				if err != nil {
+					return false
+				}
+				return u.Host == r.Host
+			},
 		},
 	}
 }
@@ -123,23 +123,24 @@ func (s sftpSocket) Get(
 	}()
 	defer close(pingDone)
 
-	l.Info("SFTP: dialing independent SSH connection to %s@%s (session %s)",
-		sessInfo.User, sessInfo.Address, sessionID)
-
-	sshConn, err := ssh.Dial("tcp", sessInfo.Address, &ssh.ClientConfig{
-		User:            sessInfo.User,
-		Auth:            sessInfo.AuthMethod,
-		HostKeyCallback: sessInfo.HostKey,
-		Timeout:         30 * time.Second,
-	})
-	if err != nil {
-		l.Warning("SFTP: independent SSH dial failed: %s", err.Error())
-		wsMu.Lock()
-		sendJSON(ws, sftpWSResponse{Type: "error", Message: "SSH connect failed: " + err.Error()})
-		wsMu.Unlock()
-		return nil
+	// Password/private-key sessions keep their independent transfer connection.
+	// Interactive authentication uses a separate SFTP channel on the already
+	// authenticated transport; one-time answers must never be replayed.
+	sshConn := sessInfo.Client
+	if !sessInfo.ReuseTransport {
+		var err error
+		sshConn, err = ssh.Dial("tcp", sessInfo.Address, &ssh.ClientConfig{
+			User:            sessInfo.User,
+			Auth:            sessInfo.AuthMethod,
+			HostKeyCallback: sessInfo.HostKey,
+			Timeout:         30 * time.Second,
+		})
+		if err != nil {
+			sendJSON(ws, sftpWSResponse{Type: "error", Message: "SSH connect failed: " + err.Error()})
+			return nil
+		}
+		defer sshConn.Close()
 	}
-	defer sshConn.Close()
 
 	sshKeepAliveDone := make(chan struct{})
 	go func() {
@@ -150,7 +151,7 @@ func (s sftpSocket) Get(
 			case <-ticker.C:
 				_, _, err := sshConn.SendRequest("keepalive@openssh.com", true, nil)
 				if err != nil {
-					l.Warning("SFTP: SSH keepalive failed (session %s): %s", sessionID, err.Error())
+					l.Warning("SFTP: SSH keepalive failed: %s", err.Error())
 					return
 				}
 			case <-sshKeepAliveDone:
@@ -160,7 +161,7 @@ func (s sftpSocket) Get(
 	}()
 	defer close(sshKeepAliveDone)
 
-	l.Info("SFTP: independent SSH connection established to %s (local=%s, remote=%s)",
+	l.Info("SFTP: SSH transport ready for %s (local=%s, remote=%s)",
 		sessInfo.Address,
 		sshConn.LocalAddr().String(),
 		sshConn.RemoteAddr().String())
@@ -181,8 +182,8 @@ func (s sftpSocket) Get(
 	sendJSON(ws, sftpWSResponse{Type: "success", Message: "connected"})
 	wsMu.Unlock()
 
-	l.Info("SFTP WebSocket connected with INDEPENDENT SSH connection (session %s)", sessionID)
-	defer l.Info("SFTP WebSocket disconnected (session %s)", sessionID)
+	l.Info("SFTP WebSocket connected")
+	defer l.Info("SFTP WebSocket disconnected")
 
 	return s.messageLoop(ws, client, sshConn, l, &wsMu)
 }
@@ -376,24 +377,24 @@ func (s sftpSocket) handleDownload(ws *websocket.Conn, client *sftp.Client, path
 }
 
 type adaptiveRateLimiter struct {
-	w            io.Writer
-	bytesLeft    int
-	limit        int
-	ticker       *time.Ticker
-	sshConn      *ssh.Client
-	mu           sync.Mutex
-	done         chan struct{}
-	minRate      int
-	maxRate      int
-	currentRate  int
+	w           io.Writer
+	bytesLeft   int
+	limit       int
+	ticker      *time.Ticker
+	sshConn     *ssh.Client
+	mu          sync.Mutex
+	done        chan struct{}
+	minRate     int
+	maxRate     int
+	currentRate int
 }
 
 const (
-	sftpMinUploadRate = 512 * 1024
-	sftpMaxUploadRate = 10 * 1024 * 1024
+	sftpMinUploadRate  = 512 * 1024
+	sftpMaxUploadRate  = 10 * 1024 * 1024
 	sftpInitUploadRate = 2 * 1024 * 1024
-	sftpLatencyLow    = 100 * time.Millisecond
-	sftpLatencyHigh   = 300 * time.Millisecond
+	sftpLatencyLow     = 100 * time.Millisecond
+	sftpLatencyHigh    = 300 * time.Millisecond
 )
 
 func newAdaptiveRateLimiter(w io.Writer, sshConn *ssh.Client) *adaptiveRateLimiter {

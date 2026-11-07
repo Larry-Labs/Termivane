@@ -16,7 +16,7 @@ RUN set -ex && \
     echo '#!/bin/sh' > /install.sh && echo 'apt-get -y update && apt-get -y --fix-broken install autoconf automake libtool build-essential ca-certificates curl git nodejs npm libvips libvips-dev libpng-dev' >> /install.sh && chmod +x /install.sh && \
     /try.sh /install.sh && rm /install.sh && \
     /try.sh update-ca-certificates -f && c_rehash && \
-    curl -fsSL https://golang.google.cn/dl/go1.24.3.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz && \
+    curl -fsSL https://golang.google.cn/dl/go1.27.3.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz && \
     export PATH=/usr/local/go/bin:$PATH && \
     export GOPATH=/root/go && \
     npm config set registry https://registry.npmmirror.com && \

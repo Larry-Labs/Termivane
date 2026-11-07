@@ -31,11 +31,9 @@
         <h1 class="window-title">SSH Connection</h1>
 
         <div v-if="singleConnector" id="connect-new-btn-wrap">
-          <a
-            id="connect-new-btn"
-            href="javascript:;"
-            @click="autoSelectSingle"
-          >+ New SSH Connection</a>
+          <a id="connect-new-btn" href="javascript:;" @click="autoSelectSingle"
+            >+ New SSH Connection</a
+          >
         </div>
 
         <connect-new
@@ -67,9 +65,9 @@
           </p>
 
           <p>
-            Sshwifty is a free software, you can deploy it on your own trusted
+            Termivane is free software, you can deploy it on your own trusted
             infrastructure.
-            <a href="https://github.com/nirui/sshwifty" target="_blank"
+            <a href="https://github.com/Larry-Labs/sshwifty" target="_blank"
               >Learn more</a
             >
           </p>

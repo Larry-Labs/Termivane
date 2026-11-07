@@ -364,8 +364,8 @@ export default {
       },
       new WebpackFavicons({
         src: path.join(__dirname, "ui", "sshwifty.svg"),
-        appName: "Sshwifty SSH Client",
-        appShortName: "Sshwifty",
+        appName: "Termivane SSH Client",
+        appShortName: "Termivane",
         appDescription: "Web SSH Client",
         developerName: "Ni Rui",
         developerURL: "https://nirui.org",
@@ -395,7 +395,7 @@ export default {
         mobile: true,
         lang: "en-US",
         inlineManifestWebpackName: "webpackManifest",
-        title: "Sshwifty Web SSH Client",
+        title: "Termivane — Web SSH & SFTP",
         minify: {
           html5: true,
           collapseWhitespace: !inDevMode,

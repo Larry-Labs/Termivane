@@ -20,7 +20,9 @@
 <template>
   <div id="home" :class="{ 'home-restoring': reconnecting }">
     <header id="home-header">
-      <h1 id="home-hd-title">Sshwifty <span id="home-hd-author">by Larry Gao</span></h1>
+      <h1 id="home-hd-title">
+        Termivane <span id="home-hd-author">by Larry Gao</span>
+      </h1>
 
       <a id="home-hd-delay" href="javascript:;" @click="showDelayWindow">
         <span
@@ -70,7 +72,7 @@
       <div id="home-content-wrap">
         <div v-if="reconnecting" id="home-reconnecting"></div>
         <template v-else>
-          <h1>Hi, this is Sshwifty</h1>
+          <h1>Welcome to Termivane</h1>
 
           <p>
             An Open Source Web SSH Client that enables you to connect to SSH
@@ -158,7 +160,7 @@ import * as home_history from "./home_historyctl.js";
 import * as presets from "./commands/presets.js";
 
 const BACKEND_CONNECT_ERROR =
-  "Unable to connect to the Sshwifty backend server: ";
+  "Unable to connect to the Termivane backend server: ";
 const BACKEND_REQUEST_ERROR = "Unable to perform request: ";
 
 export default {
@@ -217,9 +219,9 @@ export default {
       const rawTabs = sessionStorage.getItem("sshwifty_auto_reconnect_tabs");
       if (rawTabs) {
         const tabs = JSON.parse(rawTabs);
-        hasRecoverableSessions = Array.isArray(tabs) && tabs.some(
-          (t) => t.token && Date.now() - (t.ts || 0) <= maxAge,
-        );
+        hasRecoverableSessions =
+          Array.isArray(tabs) &&
+          tabs.some((t) => t.token && Date.now() - (t.ts || 0) <= maxAge);
       }
       if (!hasRecoverableSessions) {
         const rawSingle = sessionStorage.getItem("sshwifty_auto_reconnect");
@@ -679,9 +681,7 @@ export default {
       try {
         // Try multi-tab format first
         let entries = [];
-        const rawTabs = sessionStorage.getItem(
-          "sshwifty_auto_reconnect_tabs",
-        );
+        const rawTabs = sessionStorage.getItem("sshwifty_auto_reconnect_tabs");
         if (rawTabs) {
           const parsed = JSON.parse(rawTabs);
           entries = Array.isArray(parsed) ? parsed : [];
@@ -805,8 +805,7 @@ export default {
       // Try reattach first (preserves SSH session + terminal history)
       try {
         const reattachResp = await fetch(
-          "/sshwifty/session/reattach?token=" +
-            encodeURIComponent(saved.token),
+          "/sshwifty/session/reattach?token=" + encodeURIComponent(saved.token),
         );
         if (reattachResp.ok) {
           await reattachResp.json();
@@ -873,7 +872,6 @@ export default {
           },
         }) - 1,
       );
-
     },
     removeFromTab(index) {
       let isLast = index === this.tab.tabs.length - 1;

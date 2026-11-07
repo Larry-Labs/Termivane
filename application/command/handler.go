@@ -343,7 +343,7 @@ func (e *Handler) Handle() error {
 		}
 
 		h := Header(d[0])
-		l := e.log.Context("Request (%d)", requests).Context(h.String())
+		l := e.log.Context("Request (%d)", requests).Context("%s", h.String())
 
 		l.Debug("Received")
 

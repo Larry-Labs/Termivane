@@ -15,6 +15,8 @@ type SessionInfo struct {
 	User       string
 	AuthMethod []ssh.AuthMethod
 	HostKey    ssh.HostKeyCallback
+	// Interactive challenges cannot be replayed on a second SSH connection.
+	ReuseTransport bool
 }
 
 var GlobalSessions = &SessionRegistry{}

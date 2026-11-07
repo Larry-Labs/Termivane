@@ -1,0 +1,27 @@
+.console-clipboard {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: #eee;
+  background: #292e35;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.console-clipboard button {
+  padding: 5px 9px;
+  border: 1px solid #ffffff40;
+  border-radius: 4px;
+  background: #ffffff0a;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.console-clipboard button:hover,
+.console-clipboard button:focus-visible {
+  background: #ffffff20;
+}

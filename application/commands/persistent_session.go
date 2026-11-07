@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	ringBufferSize         = 64 * 1024
-	persistentSessionTTL   = 12 * time.Hour
-	cleanupInterval        = 5 * time.Minute
+	ringBufferSize       = 64 * 1024
+	persistentSessionTTL = 12 * time.Hour
+	cleanupInterval      = 5 * time.Minute
 )
 
 // RingBuffer stores recent terminal output for replay on reattach.
@@ -57,57 +57,86 @@ func (r *RingBuffer) Snapshot() []byte {
 	return out
 }
 
+// SessionAttachment owns one browser's output stream. A replaced or detached
+// attachment stops accepting data; buffered output remains readable until drained.
+type SessionAttachment struct {
+	Output  <-chan []byte
+	output  chan []byte
+	done    chan struct{}
+	senders sync.WaitGroup
+}
+
+// stop is called only while the owning session's mutex is held. All Add calls
+// also happen under that mutex, so no new sender can race with Wait or close.
+func (a *SessionAttachment) stop() {
+	close(a.done)
+	go func() {
+		a.senders.Wait()
+		close(a.output)
+	}()
+}
+
 // PersistentSession holds an SSH connection that survives WebSocket disconnects.
 type PersistentSession struct {
-	ID          string
-	Token       string
-	Client      *ssh.Client
-	Session     *ssh.Session
-	Stdin       io.WriteCloser
-	Stdout      io.Reader
-	Stderr      io.Reader
-	Output      *RingBuffer
-	Cols        int
-	Rows        int
-	DetachedAt  time.Time
-	ExpiresAt   time.Time
-	Address     string
-	User        string
+	ID         string
+	Token      string
+	Client     *ssh.Client
+	Session    *ssh.Session
+	Stdin      io.WriteCloser
+	Stdout     io.Reader
+	Stderr     io.Reader
+	Output     *RingBuffer
+	Cols       int
+	Rows       int
+	DetachedAt time.Time
+	ExpiresAt  time.Time
+	Address    string
+	User       string
 
-	mu        sync.Mutex
-	outputCh  chan []byte // nil when detached
-	closed    bool
-	closeOnce sync.Once
+	mu         sync.Mutex
+	outputMu   sync.Mutex // preserves the same ordering in history and live output
+	attachment *SessionAttachment
+	closed     bool
+	closeOnce  sync.Once
+	startOnce  sync.Once
+	done       chan struct{}
 }
 
-// Attach sets the output channel for live streaming to a WebSocket.
-// Closes any previously attached channel so old goroutines can exit.
-func (ps *PersistentSession) Attach(ch chan []byte) {
+// Attach atomically switches the browser and snapshots all preceding output.
+// Anything produced after this snapshot is delivered through the new attachment.
+func (ps *PersistentSession) Attach() (*SessionAttachment, []byte, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if ps.outputCh != nil {
-		close(ps.outputCh)
+	if ps.closed {
+		return nil, nil, io.ErrClosedPipe
 	}
-	ps.outputCh = ch
+	if ps.attachment != nil {
+		ps.attachment.stop()
+	}
+	ch := make(chan []byte, 256)
+	a := &SessionAttachment{Output: ch, output: ch, done: make(chan struct{})}
+	ps.attachment = a
 	ps.DetachedAt = time.Time{}
+	return a, ps.Output.Snapshot(), nil
 }
 
-// Detach removes the output channel; output goes only to the ring buffer.
-// Closes the channel so the relay goroutine can exit.
-func (ps *PersistentSession) Detach() {
+// Detach only releases the caller's attachment. An old browser finishing its
+// cleanup must never disconnect a newer browser attached to the same session.
+func (ps *PersistentSession) Detach(a *SessionAttachment) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if ps.outputCh != nil {
-		close(ps.outputCh)
-		ps.outputCh = nil
+	if a == nil || ps.attachment != a {
+		return
 	}
+	a.stop()
+	ps.attachment = nil
 	ps.DetachedAt = time.Now()
 }
 
 func (ps *PersistentSession) IsAttached() bool {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	return ps.outputCh != nil
+	return ps.attachment != nil
 }
 
 func (ps *PersistentSession) IsClosed() bool {
@@ -135,88 +164,120 @@ func (ps *PersistentSession) WindowChange(rows, cols int) error {
 	return ps.Session.WindowChange(rows, cols)
 }
 
-// Close terminates the SSH session and connection.
+func (ps *PersistentSession) Dimensions() (cols, rows int) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	return ps.Cols, ps.Rows
+}
+
+// Close releases blocked output senders before closing the SSH transport.
 func (ps *PersistentSession) Close() {
 	ps.closeOnce.Do(func() {
 		ps.mu.Lock()
 		ps.closed = true
-		ch := ps.outputCh
-		ps.outputCh = nil
+		if ps.attachment != nil {
+			ps.attachment.stop()
+			ps.attachment = nil
+		}
+		if ps.done != nil {
+			close(ps.done)
+		}
 		ps.mu.Unlock()
 
-		if ch != nil {
-			close(ch)
+		if ps.Session != nil {
+			ps.Session.Close()
 		}
-		ps.Session.Close()
-		ps.Client.Close()
-
+		if ps.Client != nil {
+			ps.Client.Close()
+		}
 		GlobalSessions.Unregister(ps.ID)
 		GlobalReconnectTokens.Unregister(ps.Token)
 	})
 }
 
-// safeSend attempts to send on ch, recovering from panic if ch was closed.
-func safeSend(ch chan []byte, data []byte) {
-	defer func() { recover() }()
+// publish applies backpressure while attached, but never blocks disconnect or
+// reattach. History is updated under the attachment lock, avoiding replay gaps.
+func (ps *PersistentSession) publish(data []byte, isStderr bool) {
+	ps.outputMu.Lock()
+	defer ps.outputMu.Unlock()
+	ps.mu.Lock()
+	if ps.closed {
+		ps.mu.Unlock()
+		return
+	}
+	ps.Output.Write(data)
+	a := ps.attachment
+	if a != nil {
+		a.senders.Add(1)
+	}
+	ps.mu.Unlock()
+	if a == nil {
+		return
+	}
+	defer a.senders.Done()
+	tagged := make([]byte, 1+len(data))
+	if isStderr {
+		tagged[0] = 0x01
+	}
+	copy(tagged[1:], data)
 	select {
-	case ch <- data:
-	default:
+	case a.output <- tagged:
+	case <-a.done:
 	}
 }
 
-// pumpOutput reads from the SSH stdout pipe, writes to ring buffer,
-// and forwards to the attached WebSocket channel (if any).
 func (ps *PersistentSession) pumpOutput(r io.Reader, isStderr bool) {
 	buf := make([]byte, 4096)
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
-			data := make([]byte, n)
-			copy(data, buf[:n])
-
-			ps.Output.Write(data)
-
-			ps.mu.Lock()
-			ch := ps.outputCh
-			ps.mu.Unlock()
-
-			if ch != nil {
-				tag := byte(0x00)
-				if isStderr {
-					tag = 0x01
-				}
-				tagged := make([]byte, 1+len(data))
-				tagged[0] = tag
-				copy(tagged[1:], data)
-
-				safeSend(ch, tagged)
-			}
+			ps.publish(buf[:n], isStderr)
 		}
 		if err != nil {
-			ps.Close()
+			if err != io.EOF {
+				ps.Close()
+			}
 			return
 		}
 	}
 }
 
-// Start begins pumping stdout/stderr and keepalive.
+// Start drains both SSH output streams before closing the connection. One EOF
+// alone does not imply the other stream has delivered its remaining data.
 func (ps *PersistentSession) Start() {
-	go ps.pumpOutput(ps.Stdout, false)
-	go ps.pumpOutput(ps.Stderr, true)
-	go ps.keepAlive()
-}
-
-func (ps *PersistentSession) keepAlive() {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for range ticker.C {
-		if ps.IsClosed() {
+	ps.startOnce.Do(func() {
+		ps.mu.Lock()
+		if ps.closed {
+			ps.mu.Unlock()
 			return
 		}
-		_, _, err := ps.Client.SendRequest("keepalive@openssh.com", true, nil)
-		if err != nil {
-			ps.Close()
+		ps.done = make(chan struct{})
+		done := ps.done
+		ps.mu.Unlock()
+		var pumps sync.WaitGroup
+		pumps.Add(2)
+		go func() { defer pumps.Done(); ps.pumpOutput(ps.Stdout, false) }()
+		go func() { defer pumps.Done(); ps.pumpOutput(ps.Stderr, true) }()
+		go func() { pumps.Wait(); ps.Close() }()
+		if ps.Client != nil {
+			go ps.keepAlive(done)
+		}
+	})
+}
+
+func (ps *PersistentSession) keepAlive(done <-chan struct{}) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
 			return
+		case <-ticker.C:
+			_, _, err := ps.Client.SendRequest("keepalive@openssh.com", true, nil)
+			if err != nil {
+				ps.Close()
+				return
+			}
 		}
 	}
 }
@@ -285,7 +346,7 @@ func (r *PersistentSessionRegistry) Cleanup() {
 		}
 		// Clean up detached sessions that exceeded TTL
 		ps.mu.Lock()
-		detached := ps.outputCh == nil && !ps.DetachedAt.IsZero()
+		detached := ps.attachment == nil && !ps.DetachedAt.IsZero()
 		detachedAt := ps.DetachedAt
 		ps.mu.Unlock()
 		if detached && now.Sub(detachedAt) > persistentSessionTTL {

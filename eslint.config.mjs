@@ -39,4 +39,9 @@ export default [...compat.extends(
         "no-debugger": "off",
         "no-unused-vars": "warn",
     },
+}, {
+    files: ["ui/**/*_test.js"],
+    languageOptions: {
+        globals: globals.mocha,
+    },
 }];

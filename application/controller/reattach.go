@@ -43,13 +43,14 @@ func (c reattachController) Get(
 	}
 
 	snapshot := ps.Output.Snapshot()
+	cols, rows := ps.Dimensions()
 
 	resp := reattachResponse{
 		SessionID: ps.ID,
 		Host:      ps.Address,
 		User:      ps.User,
-		Cols:      ps.Cols,
-		Rows:      ps.Rows,
+		Cols:      cols,
+		Rows:      rows,
 		Buffer:    base64.StdEncoding.EncodeToString(snapshot),
 	}
 

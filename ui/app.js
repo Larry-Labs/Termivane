@@ -331,7 +331,7 @@ function startApp(rootEl) {
             if (timeDiff > maxTimeDiff) {
               this.loadErr =
                 "The datetime difference between current client " +
-                "and the Sshwifty server is beyond the operational tolerance." +
+                "and the Termivane server is beyond the operational tolerance." +
                 "\r\n\r\n" +
                 "The server time was " +
                 serverRespondTime +

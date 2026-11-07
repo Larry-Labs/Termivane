@@ -80,13 +80,13 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			clientLogger.Info(
 				"Request completed: %q (%s)",
-				r.URL.String(),
+				r.URL.Path,
 				time.Since(startTime),
 			)
 			return
 		}
 		clientLogger.Warning("Request ended with error: %q: %s (%s)",
-			r.URL.String(), err, time.Since(startTime))
+			r.URL.Path, err, time.Since(startTime))
 		if controllerErr, isControllerErr := err.(Error); isControllerErr {
 			serveFailure(controllerErr, &ctlResponder, r, h.logger)
 			return

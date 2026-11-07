@@ -74,9 +74,10 @@ const (
 
 // Auth methods
 const (
-	SSHAuthMethodNone       byte = 0x00
-	SSHAuthMethodPassphrase byte = 0x01
-	SSHAuthMethodPrivateKey byte = 0x02
+	SSHAuthMethodNone                byte = 0x00
+	SSHAuthMethodPassphrase          byte = 0x01
+	SSHAuthMethodPrivateKey          byte = 0x02
+	SSHAuthMethodKeyboardInteractive byte = 0x04
 )
 
 type sshAuthMethodBuilder func(b []byte) []ssh.AuthMethod
@@ -159,6 +160,8 @@ func (s sshRemoteConn) isValid() bool {
 }
 
 type sshClient struct {
+	sessionMu                            sync.Mutex
+	closing                              bool
 	w                                    command.StreamResponder
 	l                                    log.Logger
 	hooks                                command.Hooks
@@ -171,18 +174,20 @@ type sshClient struct {
 	remoteReadForceRetryNextTimeout      bool
 	remoteReadTimeoutRetryLock           sync.Mutex
 	credentialReceive                    chan []byte
-	credentialProcessed                  bool
+	credentialPending                    bool
+	credentialMu                         sync.Mutex
 	credentialReceiveClosed              bool
 	fingerprintVerifyResultReceive       chan bool
 	fingerprintProcessed                 bool
 	fingerprintVerifyResultReceiveClosed bool
 	remoteConnReceive                    chan sshRemoteConn
 	remoteConn                           sshRemoteConn
-	sessionID          string
-	resolvedAuth       []ssh.AuthMethod
-	rawCredential      string
-	rawAuthMethodType  byte
-	persistentSession  *PersistentSession
+	sessionID                            string
+	resolvedAuth                         []ssh.AuthMethod
+	rawCredential                        string
+	rawAuthMethodType                    byte
+	persistentSession                    *PersistentSession
+	attachment                           *SessionAttachment
 }
 
 func newSSH(
@@ -206,7 +211,7 @@ func newSSH(
 		remoteReadForceRetryNextTimeout:      false,
 		remoteReadTimeoutRetryLock:           sync.Mutex{},
 		credentialReceive:                    make(chan []byte, 1),
-		credentialProcessed:                  false,
+		credentialPending:                    false,
 		credentialReceiveClosed:              false,
 		fingerprintVerifyResultReceive:       make(chan bool, 1),
 		fingerprintProcessed:                 false,
@@ -270,7 +275,6 @@ func (d *sshClient) Bootup(
 			}
 		}
 
-		d.persistentSession = ps
 		d.sessionID = ps.ID
 
 		d.remoteCloseWait.Add(1)
@@ -326,17 +330,9 @@ func (d *sshClient) buildAuthMethod(
 					d.enableRemoteReadTimeoutRetry()
 					defer d.disableRemoteReadTimeoutRetry()
 
-					wErr := d.w.SendManual(
-						SSHServerConnectRequestCredential,
-						b[d.w.HeaderSize():],
-					)
-					if wErr != nil {
-						return "", wErr
-					}
-
-					passphraseBytes, passphraseReceived := <-d.credentialReceive
-					if !passphraseReceived {
-						return "", ErrSSHAuthCancelled
+					passphraseBytes, err := d.requestCredential(nil)
+					if err != nil {
+						return "", err
 					}
 
 					passphrase := string(passphraseBytes)
@@ -361,17 +357,9 @@ func (d *sshClient) buildAuthMethod(
 					d.enableRemoteReadTimeoutRetry()
 					defer d.disableRemoteReadTimeoutRetry()
 
-					wErr := d.w.SendManual(
-						SSHServerConnectRequestCredential,
-						b[d.w.HeaderSize():],
-					)
-					if wErr != nil {
-						return nil, wErr
-					}
-
-					privateKeyBytes, privateKeyReceived := <-d.credentialReceive
-					if !privateKeyReceived {
-						return nil, ErrSSHAuthCancelled
+					privateKeyBytes, err := d.requestCredential(nil)
+					if err != nil {
+						return nil, err
 					}
 
 					keyStr := string(privateKeyBytes)
@@ -393,6 +381,13 @@ func (d *sshClient) buildAuthMethod(
 					return []ssh.Signer{signer}, signerErr
 				}),
 			}
+		}, nil
+	}
+
+	if methodType == SSHAuthMethodKeyboardInteractive {
+		return func(b []byte) []ssh.AuthMethod {
+			d.rawAuthMethodType = SSHAuthMethodKeyboardInteractive
+			return []ssh.AuthMethod{ssh.KeyboardInteractive(d.keyboardInteractive)}
 		}, nil
 	}
 
@@ -506,11 +501,8 @@ func (d *sshClient) remote(
 	defer func() {
 		d.w.Signal(command.HeaderClose)
 		close(d.remoteConnReceive)
-		// Don't cancel baseCtx if we have a persistent session;
-		// the session should keep running.
-		if d.persistentSession == nil {
-			d.baseCtxCancel()
-		}
+		// The browser handler context does not own the persistent SSH transport.
+		d.baseCtxCancel()
 		d.remoteCloseWait.Done()
 	}()
 
@@ -538,13 +530,17 @@ func (d *sshClient) remote(
 		return
 	}
 
-
+	var verifiedHostKey ssh.PublicKey
 	conn, clearConnInitialDeadline, err :=
 		d.dialRemote("tcp", address, &ssh.ClientConfig{
 			User: user,
 			Auth: authMethodBuilder((*u)[:]),
 			HostKeyCallback: func(h string, r net.Addr, k ssh.PublicKey) error {
-				return d.confirmRemoteFingerprint(h, r, k, (*u)[:])
+				if err := d.confirmRemoteFingerprint(h, r, k, (*u)[:]); err != nil {
+					return err
+				}
+				verifiedHostKey = k
+				return nil
 			},
 			Timeout: d.cfg.DialTimeout,
 		})
@@ -554,7 +550,12 @@ func (d *sshClient) remote(
 		d.l.Debug("Unable to connect to remote machine: %s", err)
 		return
 	}
-	// SSH connection lifecycle is now managed by PersistentSession
+	ownedBySession := false
+	defer func() {
+		if !ownedBySession {
+			conn.Close()
+		}
+	}()
 
 	session, err := conn.NewSession()
 	if err != nil {
@@ -591,7 +592,7 @@ func (d *sshClient) remote(
 		return
 	}
 
-	err = session.RequestPty("xterm", 80, 40, ssh.TerminalModes{
+	err = session.RequestPty("xterm-256color", 80, 40, ssh.TerminalModes{
 		ssh.ECHO:          1,
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
@@ -632,11 +633,12 @@ func (d *sshClient) remote(
 
 	d.sessionID = GenerateSessionID()
 	GlobalSessions.Register(d.sessionID, &SessionInfo{
-		Client:     conn,
-		Address:    address,
-		User:       user,
-		AuthMethod: d.resolvedAuth,
-		HostKey:    ssh.InsecureIgnoreHostKey(),
+		Client:         conn,
+		Address:        address,
+		User:           user,
+		AuthMethod:     d.resolvedAuth,
+		HostKey:        ssh.FixedHostKey(verifiedHostKey),
+		ReuseTransport: d.rawAuthMethodType == SSHAuthMethodKeyboardInteractive,
 	})
 
 	authMethodStr := "none"
@@ -645,6 +647,8 @@ func (d *sshClient) remote(
 		authMethodStr = "Password"
 	case SSHAuthMethodPrivateKey:
 		authMethodStr = "Private Key"
+	case SSHAuthMethodKeyboardInteractive:
+		authMethodStr = "Keyboard Interactive"
 	}
 
 	reconnectToken := GenerateReconnectToken()
@@ -657,27 +661,34 @@ func (d *sshClient) remote(
 	})
 
 	// Create persistent session
-	outputCh := make(chan []byte, 256)
 	ps := &PersistentSession{
-		ID:         d.sessionID,
-		Token:      reconnectToken,
-		Client:     conn,
-		Session:    session,
-		Stdin:      in,
-		Stdout:     out,
-		Stderr:     errOut,
-		Output:     NewRingBuffer(ringBufferSize),
-		Cols:       40,
-		Rows:       80,
-		ExpiresAt:  time.Now().Add(persistentSessionTTL),
-		Address:    address,
-		User:       user,
+		ID:        d.sessionID,
+		Token:     reconnectToken,
+		Client:    conn,
+		Session:   session,
+		Stdin:     in,
+		Stdout:    out,
+		Stderr:    errOut,
+		Output:    NewRingBuffer(ringBufferSize),
+		Cols:      40,
+		Rows:      80,
+		ExpiresAt: time.Now().Add(persistentSessionTTL),
+		Address:   address,
+		User:      user,
 	}
-	ps.Attach(outputCh)
-	ps.Start()
-
+	attachment, _, attachErr := ps.Attach()
+	if attachErr != nil {
+		ps.Close()
+		return
+	}
+	if !d.attachSession(ps, attachment) {
+		ps.Close()
+		return
+	}
+	defer ps.Detach(attachment)
+	ownedBySession = true
 	GlobalPersistentSessions.Register(ps)
-	d.persistentSession = ps
+	ps.Start()
 
 	combined := d.sessionID + "\n" + reconnectToken
 	combinedBytes := []byte(combined)
@@ -687,10 +698,10 @@ func (d *sshClient) remote(
 		return
 	}
 
-	d.l.Debug("Serving persistent session %s", d.sessionID)
+	d.l.Debug("Serving persistent SSH session")
 
 	// Relay output from persistent session channel to WebSocket
-	for tagged := range outputCh {
+	for tagged := range attachment.Output {
 		if len(tagged) < 2 {
 			continue
 		}
@@ -700,11 +711,10 @@ func (d *sshClient) remote(
 		if tag == 0x01 {
 			marker = SSHServerRemoteStdErr
 		}
-		dataLen := copy((*u)[d.w.HeaderSize():], data) + d.w.HeaderSize()
-		wErr = d.w.SendManual(byte(marker), (*u)[:dataLen])
+		wErr = d.w.Send(byte(marker), data, (*u)[:])
 		if wErr != nil {
 			// WebSocket write failed (disconnected); detach and exit
-			ps.Detach()
+			ps.Detach(attachment)
 			return
 		}
 	}
@@ -748,8 +758,16 @@ func (d *sshClient) reattach(ps *PersistentSession) {
 		return
 	}
 
-	// Replay buffered output
-	snapshot := ps.Output.Snapshot()
+	// Atomically switch the attachment and snapshot before replaying output.
+	attachment, snapshot, attachErr := ps.Attach()
+	if attachErr != nil {
+		return
+	}
+	if !d.attachSession(ps, attachment) {
+		ps.Detach(attachment)
+		return
+	}
+	defer ps.Detach(attachment)
 	for start := 0; start < len(snapshot); {
 		maxChunk := len((*u)) - d.w.HeaderSize()
 		end := start + maxChunk
@@ -760,19 +778,17 @@ func (d *sshClient) reattach(ps *PersistentSession) {
 		dataLen := copy((*u)[d.w.HeaderSize():], chunk) + d.w.HeaderSize()
 		wErr = d.w.SendManual(SSHServerRemoteStdOut, (*u)[:dataLen])
 		if wErr != nil {
-			ps.Detach()
+			ps.Detach(attachment)
 			return
 		}
 		start = end
 	}
 
 	// Attach and relay live output
-	outputCh := make(chan []byte, 256)
-	ps.Attach(outputCh)
 
-	d.l.Debug("Reattached to persistent session %s", ps.ID)
+	d.l.Debug("Reattached to persistent SSH session")
 
-	for tagged := range outputCh {
+	for tagged := range attachment.Output {
 		if len(tagged) < 2 {
 			continue
 		}
@@ -782,10 +798,9 @@ func (d *sshClient) reattach(ps *PersistentSession) {
 		if tag == 0x01 {
 			marker = SSHServerRemoteStdErr
 		}
-		dataLen := copy((*u)[d.w.HeaderSize():], data) + d.w.HeaderSize()
-		wErr = d.w.SendManual(byte(marker), (*u)[:dataLen])
+		wErr = d.w.Send(byte(marker), data, (*u)[:])
 		if wErr != nil {
-			ps.Detach()
+			ps.Detach(attachment)
 			return
 		}
 	}
@@ -853,7 +868,13 @@ func (d *sshClient) local(
 		cols |= int(b[3])
 
 		// It's ok for it to fail
-		wcErr := remote.session.WindowChange(rows, cols)
+		ps, _ := d.currentSession()
+		var wcErr error
+		if ps != nil {
+			wcErr = ps.WindowChange(rows, cols)
+		} else {
+			wcErr = remote.session.WindowChange(rows, cols)
+		}
 		if wcErr != nil {
 			d.l.Debug("Failed to resize to %d, %d: %s", rows, cols, wcErr)
 		}
@@ -888,11 +909,13 @@ func (d *sshClient) local(
 		return nil
 
 	case SSHClientRespondCredential:
-		if d.credentialProcessed {
+		d.credentialMu.Lock()
+		pending := d.credentialPending
+		d.credentialPending = false
+		d.credentialMu.Unlock()
+		if !pending {
 			return ErrSSHUnexpectedCredentialDataRespond
 		}
-
-		d.credentialProcessed = true
 
 		sshCredentialBufSize := min(r.Remains(), sshCredentialMaxSize)
 		credentialDataBuf := make([]byte, 0, sshCredentialBufSize)
@@ -922,7 +945,14 @@ func (d *sshClient) local(
 }
 
 func (d *sshClient) Close() error {
-	d.credentialProcessed = true
+	d.sessionMu.Lock()
+	d.closing = true
+	ps, attachment := d.persistentSession, d.attachment
+	d.sessionMu.Unlock()
+	d.baseCtxCancel()
+	d.credentialMu.Lock()
+	d.credentialPending = false
+	d.credentialMu.Unlock()
 	d.fingerprintProcessed = true
 
 	if !d.credentialReceiveClosed {
@@ -938,8 +968,8 @@ func (d *sshClient) Close() error {
 	}
 
 	// When we have a persistent session, just detach instead of closing SSH
-	if d.persistentSession != nil {
-		d.persistentSession.Detach()
+	if ps != nil {
+		ps.Detach(attachment)
 		d.baseCtxCancel()
 		d.remoteCloseWait.Wait()
 		return nil
