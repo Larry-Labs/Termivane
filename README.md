@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/termivane-logo.png" alt="Termivane logo" width="160" height="160">
+
 # Termivane
 
 **Your SSH workspace, in the browser.**

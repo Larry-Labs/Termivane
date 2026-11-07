@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/termivane-logo.png" alt="Termivane logo" width="160" height="160">
+
 # Termivane
 
 **在浏览器中，连接终端、管理文件、继续工作。**
