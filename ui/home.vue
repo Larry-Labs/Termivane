@@ -70,21 +70,28 @@
       <div id="home-content-wrap">
         <div v-if="reconnecting" id="home-reconnecting"></div>
         <template v-else>
+          <img
+            class="welcome-mark"
+            src="./termivane-logo-dark.png"
+            alt=""
+            width="76"
+            height="76"
+          />
+          <p class="welcome-eyebrow">YOUR REMOTE WORKSPACE</p>
           <h1>Welcome to Termivane</h1>
-
-          <p>
-            An Open Source Web SSH Client that enables you to connect to SSH
-            servers without downloading any additional software.
+          <p class="welcome-description">
+            Connect to your servers. Keep your sessions close.<br />
+            A terminal and file manager, together in your browser.
           </p>
-
-          <p>
-            To get started, click the
-            <span
-              id="home-content-connect"
-              class="icon icon-plus1"
-              @click="showConnectWindow"
-            ></span>
-            icon near the top left corner.
+          <button
+            id="home-content-connect"
+            type="button"
+            @click="showConnectWindow"
+          >
+            <span aria-hidden="true">+</span> Open a connection
+          </button>
+          <p class="welcome-capabilities">
+            SSH terminals · SFTP files · Persistent sessions
           </p>
 
           <div v-if="serverMessage.length > 0">
@@ -93,7 +100,7 @@
           </div>
 
           <hr />
-          <p class="secondary">Maintained by Larry Gao</p>
+          <p class="secondary">Developed by Larry Gao</p>
         </template>
       </div>
     </screens>

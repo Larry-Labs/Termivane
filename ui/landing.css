@@ -20,7 +20,7 @@
 @charset "utf-8";
 
 body.landing {
-  background: #1a3a4a;
+  background: var(--tv-bg);
 }
 
 #landing {
@@ -30,7 +30,7 @@ body.landing {
   flex-direction: column;
   justify-content: center;
   justify-items: center;
-  color: #fff;
+  color: var(--tv-text);
   text-align: center;
 }
 
@@ -50,7 +50,7 @@ body.landing {
 
 #landing-message a {
   text-decoration: none;
-  color: #7df;
+  color: var(--tv-accent);
 }
 
 #landing-message p {
@@ -59,7 +59,7 @@ body.landing {
 
 #landing-message p.copy {
   margin: 20px 0 10px 0;
-  color: #7df;
+  color: var(--tv-accent);
 }
 
 #landing-message p.copy.copy-first {
@@ -67,7 +67,7 @@ body.landing {
 }
 
 #landing-message p.copy a {
-  border: 1px solid #7df;
+  border: 1px solid var(--tv-accent);
   display: inline-block;
   padding: 3px 7px;
   margin: 5px;
@@ -76,7 +76,7 @@ body.landing {
 }
 
 #landing-message-logo {
-  background: url("../docs/assets/termivane-logo.png") center / contain no-repeat;
+  background: url("./termivane-logo-dark.png") center / contain no-repeat;
   width: 128px;
   height: 128px;
   margin: 0 auto 32px;
@@ -104,8 +104,10 @@ body.landing {
 }
 
 #auth-content {
-  background: #333;
-  box-shadow: 0 0 3px #111;
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px #0003;
   padding: 30px;
   max-width: 380px;
   margin: 0 auto;
@@ -122,7 +124,7 @@ body.landing {
 
 #auth-content > h1 {
   margin-bottom: 20px;
-  color: #7df;
+  color: var(--tv-accent);
   font-size: 1.2em;
   font-weight: bold;
   text-transform: uppercase;

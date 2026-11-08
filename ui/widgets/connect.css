@@ -24,8 +24,8 @@
   top: 40px;
   left: 159px;
   display: none;
-  background: #333;
-  width: 700px;
+  background: var(--tv-panel);
+  width: 600px;
 }
 
 #connect-frame {
@@ -41,7 +41,7 @@
 
 #connect:before {
   left: 30px;
-  background: #333;
+  background: var(--tv-panel);
 }
 
 @media (max-width: 1024px) {
@@ -75,19 +75,19 @@
 #connect h1 {
   padding: 15px 15px 0 15px;
   margin-bottom: 10px;
-  color: #999;
+  color: var(--tv-muted);
 }
 
 #connect-close {
   cursor: pointer;
-  color: #999;
+  color: var(--tv-muted);
   right: 10px;
   top: 20px;
 }
 
 #connect-busy-overlay {
   z-index: 2;
-  background: #2229 url("../../docs/assets/termivane-logo.png") center / 80px 80px no-repeat;
+  background: #2229 url("../termivane-logo-dark.png") center / 80px 80px no-repeat;
   top: 0;
   left: 0;
   bottom: 0;
@@ -103,8 +103,8 @@
 #connect-new-btn {
   display: block;
   padding: 12px 20px;
-  background: #4a8;
-  color: #fff;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
   text-align: center;
   text-decoration: none;
   border-radius: 4px;
@@ -114,18 +114,21 @@
 }
 
 #connect-new-btn:hover {
-  background: #5b9;
+  background: var(--tv-accent-hover);
 }
 
 #connect-new-btn:active {
-  background: #397;
+  background: var(--tv-accent-hover);
 }
 
 #connect-warning {
   padding: 20px;
-  font-size: 0.85em;
-  background: #b44;
-  color: #fff;
+  font-size: 0.75em;
+  line-height: 1.6;
+  background: var(--tv-danger-surface);
+  border-top: 1px solid var(--tv-border);
+  border-radius: 0 0 10px 10px;
+  color: var(--tv-text);
 }
 
 #connect-warning-icon {
@@ -135,7 +138,8 @@
 }
 
 #connect-warning-icon::after {
-  background: #c55;
+  background: transparent;
+  color: var(--tv-danger);
 }
 
 #connect-warning-msg {
@@ -147,6 +151,6 @@
 }
 
 #connect-warning-msg a {
-  color: #faa;
+  color: var(--tv-danger);
   text-decoration: underline;
 }

@@ -60,13 +60,13 @@
         <span id="connect-warning-icon" class="icon icon-warning1"></span>
         <div id="connect-warning-msg">
           <p>
-            <strong>An insecured service may steal your secrets.</strong>
-            Always exam the safety of the service before using it.
+            <strong>Only connect through a service you trust.</strong>
+            An untrusted operator could access your credentials and session
+            data.
           </p>
 
           <p>
-            Termivane is free software, you can deploy it on your own trusted
-            infrastructure.
+            You can self-host Termivane on your own infrastructure.
             <a href="https://github.com/Larry-Labs/Termivane" target="_blank"
               >Learn more</a
             >

@@ -21,33 +21,33 @@
 
 #connect-new {
   min-height: 200px;
-  background: #3a3a3a;
+  background: var(--tv-raised);
   font-size: 0.75em;
   padding: 15px;
 }
 
 #connect-new li .lst-wrap:hover {
-  background: #2a3a3a;
+  background: var(--tv-hover);
 }
 
 #connect-new li .lst-wrap:active {
-  background: #444;
+  background: var(--tv-bg);
 }
 
 #connect-new li .lst-wrap {
   cursor: pointer;
-  color: #aaa;
+  color: var(--tv-muted);
   padding: 15px;
 }
 
 #connect-new li h2 {
-  color: #5cf;
+  color: var(--tv-accent);
 }
 
 #connect-new li h2::before {
   content: ">";
   margin: 0 5px 0 0;
-  color: #555;
+  color: var(--tv-border);
   font-weight: normal;
   transition: ease 0.3s margin;
 }

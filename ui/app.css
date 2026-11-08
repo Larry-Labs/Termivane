@@ -30,7 +30,7 @@
 
 body.app-error {
   background: #4a2a2a;
-  color: #fff;
+  color: var(--tv-text);
 }
 
 body.app-error .app-error-message {
@@ -53,7 +53,7 @@ body.app-error .app-error-message {
 }
 
 #app-loading-icon {
-  background: url("../docs/assets/termivane-logo.png") center / contain no-repeat;
+  background: url("./termivane-logo-dark.png") center / contain no-repeat;
   width: 128px;
   height: 128px;
   margin: 0 auto 32px;
@@ -62,11 +62,11 @@ body.app-error .app-error-message {
 
 #app-loading-error {
   font-size: 5em;
-  color: #fff;
+  color: var(--tv-text);
 }
 
 #app-loading-title {
-  color: #7df;
+  color: var(--tv-accent);
   font-size: 1.2em;
   font-weight: lighter;
   max-width: 500px;
@@ -74,5 +74,5 @@ body.app-error .app-error-message {
 }
 
 #app-loading-title.error {
-  color: #fff;
+  color: var(--tv-text);
 }

@@ -20,18 +20,18 @@
 @charset "utf-8";
 
 #connector {
-  padding: 15px 20px 40px 20px;
+  padding: 20px 24px 28px;
 }
 
 #connector-cancel {
   display: inline-block;
   text-decoration: none;
-  color: #5cf;
+  color: var(--tv-accent);
   margin-right: 40px;
 }
 
 #connector-cancel.disabled {
-  color: #444;
+  color: var(--tv-bg);
 }
 
 #connector-cancel::before {
@@ -40,15 +40,15 @@
 }
 
 #connector-title {
-  margin-top: 10px;
-  text-align: center;
-  font-size: 0.9em;
-  color: #aaa;
+  margin: 20px 0;
+  text-align: left;
+  font-size: 0.85em;
+  color: var(--tv-muted);
 }
 
 #connector-title > h2 {
-  color: #5cf;
-  font-size: 1.3em;
+  color: var(--tv-text);
+  font-size: 1.5em;
   font-weight: bold;
   margin: 3px 0;
 }
@@ -75,7 +75,7 @@
   margin-top: 10px;
   text-align: center;
   font-size: 0.9em;
-  color: #aaa;
+  color: var(--tv-muted);
 }
 
 #connector-proccess-message {
@@ -85,7 +85,7 @@
 #connector-proccess-message > h2 {
   font-weight: normal;
   margin: 10px 0;
-  color: #5cf;
+  color: var(--tv-accent);
   font-size: 1.2em;
 }
 
@@ -101,11 +101,11 @@
   }
 
   50% {
-    outline: 2px solid #5cf;
+    outline: 2px solid var(--tv-accent);
   }
 
   60% {
-    border-color: #5cf;
+    border-color: var(--tv-accent);
     outline: none;
   }
 }
@@ -123,4 +123,28 @@
   width: 100%;
   margin: 20px auto;
   padding: 0;
+}
+
+#connector-fields > .field {
+  margin-bottom: 16px;
+}
+
+#connector-fields > .field > .message {
+  font-size: 0.9em;
+  line-height: 1.5;
+  margin-top: 8px;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+#connector-continue {
+  padding-top: 12px;
+  border-top: 1px solid var(--tv-border);
+  margin-top: 24px;
+}
+
+@media (max-width: 480px) {
+  #connector {
+    padding: 16px 18px 24px;
+  }
 }

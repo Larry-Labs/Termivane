@@ -71,8 +71,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: var(--tv-panel);
+  color: var(--tv-text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
@@ -85,25 +85,25 @@
 }
 
 .file-browser-container ::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: var(--tv-panel);
 }
 
 .file-browser-container ::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: var(--tv-border);
   border-radius: 5px;
 }
 
 .file-browser-container ::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+  background: var(--tv-muted);
 }
 
 /* 输入框和选择框样式 */
 .file-browser input[type="text"],
 .file-browser input[type="password"],
 .file-browser select {
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #d4d4d4;
+  background: var(--tv-raised);
+  border: 1px solid var(--tv-border);
+  color: var(--tv-text);
   padding: 6px 8px;
   border-radius: 3px;
   font-size: 13px;
@@ -113,10 +113,11 @@
 .file-browser input[type="password"]:focus,
 .file-browser select:focus {
   outline: none;
-  border-color: #0e639c;
+  border-color: var(--tv-accent);
 }
 
 .file-browser input[type="checkbox"] {
+  accent-color: var(--tv-accent);
   cursor: pointer;
 }
 
@@ -128,15 +129,15 @@
 }
 
 .file-browser button:focus {
-  outline: 2px solid #0e639c;
+  outline: 2px solid var(--tv-accent);
   outline-offset: 2px;
 }
 
 /* 右键菜单样式 */
 .context-menu {
   position: fixed;
-  background: #252526;
-  border: 1px solid #3c3c3c;
+  background: var(--tv-raised);
+  border: 1px solid var(--tv-border);
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   padding: 4px 0;
@@ -153,7 +154,7 @@
 }
 
 .context-menu-item:hover {
-  background: #2a2d2e;
+  background: var(--tv-hover);
 }
 
 .context-menu-item.disabled {
@@ -163,7 +164,7 @@
 
 .context-menu-separator {
   height: 1px;
-  background: #3c3c3c;
+  background: var(--tv-border);
   margin: 4px 0;
 }
 
@@ -182,8 +183,8 @@
 }
 
 .dialog {
-  background: #252526;
-  border: 1px solid #3c3c3c;
+  background: var(--tv-raised);
+  border: 1px solid var(--tv-border);
   border-radius: 6px;
   padding: 20px;
   min-width: 400px;
@@ -195,7 +196,7 @@
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
-  color: #cccccc;
+  color: var(--tv-text);
 }
 
 .dialog-body {
@@ -217,21 +218,22 @@
 }
 
 .dialog-button-primary {
-  background: #0e639c;
-  color: white;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
 }
 
 .dialog-button-primary:hover {
-  background: #1177bb;
+  background: var(--tv-accent);
+  filter: brightness(1.08);
 }
 
 .dialog-button-secondary {
-  background: #3c3c3c;
-  color: #d4d4d4;
+  background: var(--tv-raised);
+  color: var(--tv-text);
 }
 
 .dialog-button-secondary:hover {
-  background: #505050;
+  background: var(--tv-hover);
 }
 
 /* 表单样式 */
@@ -242,23 +244,23 @@
 .form-label {
   display: block;
   margin-bottom: 6px;
-  color: #cccccc;
+  color: var(--tv-text);
   font-size: 13px;
 }
 
 .form-input {
   width: 100%;
   padding: 8px;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #d4d4d4;
+  background: var(--tv-raised);
+  border: 1px solid var(--tv-border);
+  color: var(--tv-text);
   border-radius: 3px;
   font-size: 13px;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #0e639c;
+  border-color: var(--tv-accent);
 }
 
 /* 提示消息 */
@@ -266,8 +268,8 @@
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background: #252526;
-  border: 1px solid #3c3c3c;
+  background: var(--tv-raised);
+  border: 1px solid var(--tv-border);
   border-radius: 4px;
   padding: 12px 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -288,19 +290,19 @@
 }
 
 .toast.success {
-  border-left: 4px solid #4ec9b0;
+  border-left: 4px solid var(--tv-accent);
 }
 
 .toast.error {
-  border-left: 4px solid #f48771;
+  border-left: 4px solid var(--tv-danger);
 }
 
 .toast.info {
-  border-left: 4px solid #0e639c;
+  border-left: 4px solid var(--tv-accent);
 }
 
 .toast-message {
-  color: #d4d4d4;
+  color: var(--tv-text);
   font-size: 13px;
 }
 
@@ -327,7 +329,7 @@
 }
 
 .text-muted {
-  color: #858585;
+  color: var(--tv-muted);
 }
 
 .mt-1 {

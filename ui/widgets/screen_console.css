@@ -50,8 +50,8 @@
   min-width: 600px;
   max-height: 100%;
   overflow: auto;
-  background: #222;
-  color: #fff;
+  background: var(--tv-panel);
+  color: var(--tv-text);
   box-shadow: 0 3px 12px #0006;
   z-index: 20;
 }
@@ -68,13 +68,13 @@
 }
 
 .console-toolbar > .console-toolbar-group.console-toolbar-group-left {
-  border-right: 1px solid #0001;
+  border-right: 1px solid var(--tv-border);
   margin-right: -1px;
   float: left;
 }
 
 .console-toolbar > .console-toolbar-group.console-toolbar-group-main {
-  border-left: 1px solid #0001;
+  border-left: 1px solid var(--tv-border);
   overflow: auto;
 }
 
@@ -87,8 +87,8 @@
   font-size: 0.7em;
   text-transform: uppercase;
   margin: 0 0 5px 10px;
-  color: #fff9;
-  text-shadow: 1px 1px 1px #0005;
+  color: var(--tv-muted);
+  text-shadow: none;
 }
 
 .console-toolbar > .console-toolbar-group > .console-toolbar-item .tb-item {
@@ -101,13 +101,13 @@
 }
 
 .console-toolbar > .console-toolbar-group > .console-toolbar-item .tb-item:active {
-  background: #fff3;
+  background: var(--tv-hover);
 }
 
 .console-toolbar > .console-toolbar-group > .console-toolbar-item .tb-item > .tb-key-icon {
   margin: 0 5px;
-  background: #fff2;
-  color: #fff;
+  background: var(--tv-raised);
+  color: var(--tv-text);
 }
 
 .console-toolbar > .console-toolbar-group > .console-toolbar-item .tb-item > .tb-key-icon.tb-key-resize-icon {
@@ -175,7 +175,7 @@
   > .console-loading
   > .console-loading-frame
   > .console-loading-icon {
-  background: url("../../docs/assets/termivane-logo.png") center / 80px 80px no-repeat;
+  background: url("../termivane-logo-dark.png") center / 80px 80px no-repeat;
   width: 100%;
   height: 100px;
 }
@@ -220,8 +220,8 @@
   min-width: 260px;
   max-width: 260px;
   height: 100%;
-  background: #1e1e1e;
-  color: #ccc;
+  background: var(--tv-panel);
+  color: var(--tv-text);
   display: flex;
   flex-direction: column;
   border-right: none;
@@ -251,8 +251,8 @@
   padding: 0 8px 0 12px;
   height: 32px;
   min-height: 32px;
-  background: #252525;
-  border-bottom: 1px solid #ffffff08;
+  background: var(--tv-raised);
+  border-bottom: 1px solid var(--tv-border);
   gap: 6px;
 }
 
@@ -265,15 +265,15 @@
 }
 
 .breadcrumb-item {
-  color: #777;
+  color: var(--tv-muted);
   text-decoration: none;
   font-size: 11px;
   transition: color 0.1s;
 }
-.breadcrumb-item:hover { color: #5cf; }
-.breadcrumb-item::after { content: " / "; color: #444; }
+.breadcrumb-item:hover { color: var(--tv-accent); }
+.breadcrumb-item::after { content: " / "; color: var(--tv-border); }
 .breadcrumb-item:last-child::after { content: ""; }
-.breadcrumb-item:last-child { color: #ccc; }
+.breadcrumb-item:last-child { color: var(--tv-text); }
 .breadcrumb-item.breadcrumb-root::after { content: " "; }
 
 .file-panel-actions {
@@ -292,7 +292,7 @@
   min-width: 28px;
   min-height: 28px;
   background: transparent;
-  color: #555;
+  color: var(--tv-muted);
   text-decoration: none;
   border-radius: 4px;
   font-size: 13px;
@@ -301,17 +301,17 @@
   transition: all 0.15s;
   line-height: 1;
 }
-.fp-btn:hover { background: #ffffff12; color: #ccc; }
-.fp-btn:active { background: #ffffff08; }
-.fp-btn-close { color: #555; font-size: 11px; }
-.fp-btn-close:hover { color: #f88; background: #ff000015; }
+.fp-btn:hover { background: var(--tv-hover); color: var(--tv-text); }
+.fp-btn:active { background: var(--tv-raised); }
+.fp-btn-close { color: var(--tv-muted); font-size: 11px; }
+.fp-btn-close:hover { color: var(--tv-danger); background: var(--tv-hover); }
 
 .file-panel-loading, .file-panel-error {
   padding: 12px 14px;
   font-size: 12px;
-  color: #888;
+  color: var(--tv-muted);
 }
-.file-panel-error { color: #e74c3c; }
+.file-panel-error { color: var(--tv-danger); }
 
 .file-list {
   flex: 1;
@@ -326,11 +326,11 @@
   background: transparent;
 }
 .file-panel ::-webkit-scrollbar-thumb {
-  background: #ffffff20;
+  background: var(--tv-border);
   border-radius: 4px;
 }
 .file-panel ::-webkit-scrollbar-thumb:hover {
-  background: #ffffff40;
+  background: var(--tv-muted);
 }
 
 .file-item {
@@ -338,11 +338,11 @@
   align-items: center;
   padding: 6px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #ffffff06;
+  border-bottom: 1px solid var(--tv-border);
   gap: 8px;
   transition: background 0.1s;
 }
-.file-item:hover { background: #ffffff0d; }
+.file-item:hover { background: var(--tv-hover); }
 
 .file-icon {
   flex-shrink: 0;
@@ -355,12 +355,12 @@
   border-radius: 3px;
 }
 .file-icon-dir {
-  background: #5cf;
-  color: #1a3040;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
 }
 .file-icon-file {
-  background: #ffffff15;
-  color: #888;
+  background: var(--tv-raised);
+  color: var(--tv-muted);
 }
 
 .file-name {
@@ -369,35 +369,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ccc;
+  color: var(--tv-text);
 }
 
 .file-size {
   flex-shrink: 0;
   font-size: 11px;
-  color: #666;
+  color: var(--tv-muted);
   margin-left: auto;
   padding: 0 4px;
 }
 
 .file-action {
   flex-shrink: 0;
-  color: #777;
+  color: var(--tv-muted);
   text-decoration: none;
   padding: 6px 10px;
   font-size: 11px;
-  border: 1px solid #ffffff12;
+  border: 1px solid var(--tv-border);
   border-radius: 3px;
   margin-left: 2px;
-  background: #ffffff08;
+  background: var(--tv-raised);
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.file-action:hover { color: #fff; background: #ffffff20; border-color: #ffffff30; }
-.file-action-delete { color: #a77; }
-.file-action-delete:hover { color: #f88; background: #ff000018; border-color: #f884; }
+.file-action:hover { color: var(--tv-text); background: var(--tv-hover); border-color: var(--tv-accent); }
+.file-action-delete { color: var(--tv-danger); }
+.file-action-delete:hover { color: var(--tv-danger); background: var(--tv-hover); border-color: var(--tv-danger); }
 
 .file-transfers {
-  border-top: 1px solid #ffffff0a;
+  border-top: 1px solid var(--tv-border);
   max-height: 160px;
   overflow-y: auto;
 }
@@ -406,7 +406,7 @@
   padding: 8px 14px 4px;
   font-size: 11px;
   font-weight: bold;
-  color: #888;
+  color: var(--tv-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -414,7 +414,7 @@
 .transfer-item {
   padding: 6px 14px;
   font-size: 12px;
-  border-bottom: 1px solid #ffffff06;
+  border-bottom: 1px solid var(--tv-border);
 }
 
 .transfer-info {
@@ -429,7 +429,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #bbb;
+  color: var(--tv-text);
 }
 
 .transfer-status {
@@ -440,37 +440,37 @@
 }
 
 .transfer-active {
-  color: #3c8;
+  color: var(--tv-accent);
 }
 
 .transfer-speed {
   margin-left: 6px;
   font-size: 0.85em;
-  color: #9be;
+  color: var(--tv-muted);
   font-weight: normal;
 }
 
 .transfer-queued {
-  color: #886;
+  color: var(--tv-warning);
   font-style: italic;
   font-weight: normal;
 }
 
 .transfer-failed {
-  color: #f66;
+  color: var(--tv-danger);
 }
 
 .transfer-bar-bg {
   margin-top: 4px;
   height: 3px;
-  background: #ffffff0a;
+  background: var(--tv-border);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .transfer-bar-fill {
   height: 100%;
-  background: #3c8;
+  background: var(--tv-accent);
   border-radius: 2px;
   transition: width 0.15s ease;
 }
@@ -485,10 +485,10 @@
   flex-shrink: 0;
 }
 .file-panel-resize:hover {
-  background: #55ccff40;
+  background: var(--tv-hover);
 }
 .file-panel-resize:active {
-  background: #55ccff60;
+  background: var(--tv-accent);
 }
 
 /* SFTP pill button (sits below the terminal as a flex item) */
@@ -503,9 +503,9 @@
   text-transform: uppercase;
   text-decoration: none;
   text-align: center;
-  color: #777;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--tv-muted);
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-border);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -514,14 +514,14 @@
 }
 
 .sftp-pill:hover {
-  color: #5cf;
-  background: rgba(85, 204, 255, 0.1);
-  border-color: rgba(85, 204, 255, 0.25);
+  color: var(--tv-accent);
+  background: var(--tv-hover);
+  border-color: var(--tv-accent);
 }
 
 .sftp-pill:active {
-  color: #5cf;
-  background: rgba(85, 204, 255, 0.15);
+  color: var(--tv-accent);
+  background: var(--tv-hover);
 }
 
 /* Drag-and-drop overlay */
@@ -531,7 +531,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(42, 42, 42, 0.88);
+  background: rgba(21, 26, 33, 0.94);
   z-index: 10;
   display: flex;
   align-items: center;
@@ -540,10 +540,20 @@
 }
 
 .drop-overlay-text {
-  color: #5cf;
+  color: var(--tv-accent);
   font-size: 18px;
   font-weight: bold;
   padding: 20px 40px;
-  border: 3px dashed #888;
+  border: 3px dashed var(--tv-muted);
   border-radius: 12px;
+}
+
+/* Keyboard focus remains visible on compact file and terminal controls. */
+.breadcrumb-item:focus-visible,
+.fp-btn:focus-visible,
+.file-action:focus-visible,
+.sftp-pill:focus-visible,
+.console-toolbar .tb-item:focus-visible {
+  outline: 2px solid var(--tv-accent);
+  outline-offset: -2px;
 }

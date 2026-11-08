@@ -21,52 +21,6 @@
 
 @import "~roboto-fontface/css/roboto/roboto-fontface.css";
 
-@keyframes home-window-display-flash {
-  0% {
-    top: -2px;
-    opacity: 0;
-    box-shadow: 0 0 0 transparent;
-  }
-
-  20% {
-    height: 20px;
-    box-shadow: 0 0 50px #fff;
-  }
-
-  50% {
-    opacity: 0.5;
-    box-shadow: 0 0 10px #fff;
-  }
-
-  100% {
-    top: 100%;
-    height: 0;
-    opacity: 0;
-    box-shadow: 0 0 0 transparent;
-  }
-}
-
-.home-window-display {
-}
-
-.home-window-display::after {
-  opacity: 0;
-  z-index: 2;
-  content: " ";
-  display: block;
-  position: absolute;
-  width: 100%;
-  height: 0;
-  top: -2px;
-  left: 0;
-  right: 0;
-  background: #fff;
-  animation-name: home-window-display-flash;
-  animation-duration: 0.3s;
-  animation-iteration-count: 1;
-  box-shadow: 0 0 10px #fff;
-}
-
 #home {
   height: 100%;
   display: flex;
@@ -79,9 +33,11 @@
 }
 
 #home-header {
+  background: var(--tv-panel);
+  box-shadow: 0 1px 0 var(--tv-border);
   flex: 0 0 40px;
   font-size: 0.9em;
-  color: #fff;
+  color: var(--tv-text);
   width: 100%;
   overflow: auto;
   display: flex;
@@ -110,7 +66,7 @@
   flex-direction: row;
   overflow: hidden;
   margin: 0 12px;
-  color: #aaa;
+  color: var(--tv-muted);
   text-decoration: none;
   justify-items: center;
   justify-content: center;
@@ -129,8 +85,8 @@
 }
 
 #home-hd-delay-icon {
-  color: #bbb;
-  text-shadow: 0 0 3px #999;
+  color: var(--tv-muted);
+  text-shadow: none;
   transition: linear 0.2s color, text-shadow;
   margin: 5px;
   font-size: 0.54em;
@@ -185,23 +141,23 @@
 }
 
 #home-hd-delay-icon.green {
-  color: #1e8;
-  text-shadow: 0 0 3px #1e8;
+  color: var(--tv-accent);
+  text-shadow: none;
 }
 
 #home-hd-delay-icon.yellow {
-  color: #ff4;
-  text-shadow: 0 0 3px #ff4;
+  color: var(--tv-warning);
+  text-shadow: none;
 }
 
 #home-hd-delay-icon.orange {
-  color: #f80;
-  text-shadow: 0 0 3px #f80;
+  color: var(--tv-warning);
+  text-shadow: none;
 }
 
 #home-hd-delay-icon.red {
-  color: #e11;
-  text-shadow: 0 0 3px #e11;
+  color: var(--tv-danger);
+  text-shadow: none;
 }
 
 #home-hd-delay-icon.flash {
@@ -227,48 +183,21 @@
   height: 100%;
 }
 
-@keyframes home-hd-plus-icon-flash {
-  0% {
-    background: #2a7;
-  }
-
-  20% {
-    background: #38c;
-  }
-
-  40% {
-    background: #2b9;
-  }
-
-  60% {
-    background: #379;
-  }
-
-  80% {
-    background: #5ae;
-  }
-
-  100% {
-    background: #2a7;
-  }
+#home-hd-plus {
+  background: transparent;
+  color: var(--tv-muted);
+  transition: background 0.15s, color 0.15s;
 }
 
+#home-hd-plus:hover,
+#home-hd-plus:focus-visible,
 #home-hd-plus.working {
-  color: #fff;
-  background: #2a7;
-  animation-name: home-hd-plus-icon-flash;
-  animation-duration: 10s;
-  animation-iteration-count: infinite;
-  animation-direction: normal;
-  transition: linear 2s background;
-}
-
-#home-hd-plus.working.intensify {
-  animation-duration: 3s;
+  background: var(--tv-hover);
+  color: var(--tv-accent);
 }
 
 #home-hd-tabs {
-  background: #333;
+  background: var(--tv-panel);
   flex: auto;
   overflow: hidden;
   height: 100%;
@@ -295,8 +224,8 @@
   display: flex;
   position: relative;
   padding: 0 15px;
-  opacity: 0.3;
-  color: #999;
+  opacity: 1;
+  color: var(--tv-muted);
 }
 
 @media (max-width: 768px) {
@@ -319,6 +248,8 @@
 }
 
 #home-hd-tabs-tabs > li.active::after {
+  height: 2px;
+  background: var(--tv-accent);
   right: 0;
   left: 0;
 }
@@ -345,8 +276,8 @@
   font-weight: bold;
   margin-right: 3px;
   text-transform: uppercase;
-  color: #fff;
-  background: #222;
+  color: var(--tv-text);
+  background: var(--tv-panel);
   padding: 1px 4px;
   border-radius: 2px;
 }
@@ -356,7 +287,7 @@
 }
 
 #home-hd-tabs-tabs > li.active {
-  color: #fff;
+  color: var(--tv-text);
   opacity: 1;
 }
 
@@ -382,7 +313,7 @@
   justify-content: center;
   height: 100%;
   text-decoration: none;
-  box-shadow: 0 0 3px #333;
+  box-shadow: 0 0 3px var(--tv-panel);
 }
 
 #home-content {
@@ -390,7 +321,7 @@
   display: flex;
   justify-content: center;
   flex-direction: column;
-  color: #fff;
+  color: var(--tv-text);
   font-size: 1.2em;
 }
 
@@ -401,7 +332,7 @@
 }
 
 #home-content-wrap {
-  max-width: 520px;
+  max-width: 560px;
   margin: 50px auto;
   padding: 0 30px;
   text-align: center;
@@ -423,38 +354,100 @@
 }
 
 #home-content h1 {
-  margin: 20px 0;
+  margin: 0 0 20px;
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
 }
 
 #home-content p {
   margin: 10px 0;
   font-size: 0.9em;
-  color: #eee;
-  line-height: 1.6;
+  color: var(--tv-muted);
+  line-height: 1.75;
 }
 
 #home-content p.secondary {
   margin: 5px 0;
   line-height: 1.5;
   font-size: 0.7em;
-  color: #aaa;
+  color: var(--tv-muted);
 }
 
 #home-content p a {
-  color: #5cf;
+  color: var(--tv-accent);
 }
 
 #home-content hr {
-  height: 2px;
-  background: #3c3c3c;
+  height: 1px;
+  background: var(--tv-border);
   border: none;
   margin: 30px 0;
 }
 
+#home-content-wrap .welcome-mark {
+  display: block;
+  margin: 0 auto 24px;
+  border-radius: 16px;
+}
+
+#home-content-wrap .welcome-eyebrow {
+  color: var(--tv-accent);
+  font-size: 0.6em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  margin: 0 0 12px;
+}
+
+#home-content-wrap .welcome-description {
+  font-size: 0.85em;
+  margin: 0 0 28px;
+}
+
 #home-content-connect {
-  padding: 10px;
-  display: inline-block;
-  width: 24px;
-  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--tv-accent);
+  border-radius: 7px;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
+  padding: 11px 20px;
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#home-content-connect:hover {
+  background: var(--tv-accent-hover);
+  border-color: var(--tv-accent-hover);
+}
+
+#home-content-connect > span {
+  font-size: 1.3em;
+  line-height: 1;
+}
+
+#home-content-wrap .welcome-capabilities {
+  margin: 18px 0 0;
+  font-size: 0.65em;
+}
+
+#home-content-wrap hr {
+  max-width: 72px;
+  margin: 32px auto 18px;
+}
+
+@media (max-width: 480px) {
+  #home-content-wrap {
+    padding: 0 22px;
+    margin: 32px auto;
+  }
+
+  #home-content-wrap .welcome-description br {
+    display: none;
+  }
 }

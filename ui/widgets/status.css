@@ -25,7 +25,7 @@
   left: 96px;
   display: none;
   width: 500px;
-  background: #262626;
+  background: var(--tv-panel);
 }
 
 #conn-status .window-frame {
@@ -56,66 +56,66 @@
 
 #conn-status h1 {
   padding: 15px 15px 10px 15px;
-  background: #2a7;
+  background: var(--tv-panel);
 }
 
 #conn-status-info {
   padding: 0 15px 15px 15px;
   font-size: 0.9em;
   line-height: 1.5;
-  background: #2a7;
+  background: var(--tv-panel);
 }
 
 #conn-status.green:before {
-  background: #287;
+  background: var(--tv-success-surface);
 }
 
 #conn-status.green h1 {
-  color: #6ba;
-  background: #287;
+  color: var(--tv-accent);
+  background: var(--tv-success-surface);
 }
 
 #conn-status.green #conn-status-info {
-  background: #287;
+  background: var(--tv-success-surface);
 }
 
 #conn-status.yellow:before {
-  background: #da0;
+  background: var(--tv-warning-surface);
 }
 
 #conn-status.yellow h1 {
-  color: #fff;
-  background: #da0;
+  color: var(--tv-text);
+  background: var(--tv-warning-surface);
 }
 
 #conn-status.yellow #conn-status-info {
-  background: #da0;
+  background: var(--tv-warning-surface);
 }
 
 #conn-status.orange:before {
-  background: #b73;
+  background: var(--tv-warning-surface);
 }
 
 #conn-status.orange h1 {
-  color: #fff;
-  background: #b73;
+  color: var(--tv-text);
+  background: var(--tv-warning-surface);
 }
 
 #conn-status.orange #conn-status-info {
-  background: #b73;
+  background: var(--tv-warning-surface);
 }
 
 #conn-status.red:before {
-  background: #a33;
+  background: var(--tv-danger-surface);
 }
 
 #conn-status.red h1 {
-  color: #fff;
-  background: #a33;
+  color: var(--tv-text);
+  background: var(--tv-danger-surface);
 }
 
 #conn-status.red #conn-status-info {
-  background: #a33;
+  background: var(--tv-danger-surface);
 }
 
 .conn-status-chart {
@@ -137,7 +137,7 @@
 
 .conn-status-chart > .counters > .counter .name {
   font-size: 0.8em;
-  color: #777;
+  color: var(--tv-muted);
   text-transform: uppercase;
   font-weight: bold;
   letter-spacing: 1px;
@@ -164,17 +164,17 @@
 }
 
 .conn-status-chart > .chart .zero {
-  stroke: #3a3a3a;
+  stroke: var(--tv-border);
   stroke-width: 3px;
 }
 
 .conn-status-chart > .chart .expired {
-  stroke: #3a3a3a;
+  stroke: var(--tv-border);
 }
 
 #conn-status-delay {
   padding: 15px 0;
-  background: #292929;
+  background: var(--tv-raised);
 }
 
 #conn-status-delay > .counters > .counter {

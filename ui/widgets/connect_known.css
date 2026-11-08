@@ -22,7 +22,7 @@
 #connect-known-list {
   min-height: 200px;
   font-size: 0.75em;
-  background: #3a3a3a;
+  background: var(--tv-raised);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -30,7 +30,7 @@
 
 #connect-known-list h3 {
   font-size: 1.1em;
-  color: #999;
+  color: var(--tv-muted);
   margin: 5px 0 15px 0;
   text-transform: uppercase;
   font-weight: bold;
@@ -50,11 +50,11 @@
   top: -2px;
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--tv-text);
   animation-name: home-window-display-flash;
   animation-duration: 0.5s;
   animation-iteration-count: 1;
-  box-shadow: 0 0 10px #fff;
+  box-shadow: 0 0 10px var(--tv-text);
 }
 
 #connect-known-list-list,
@@ -64,7 +64,7 @@
 
 #connect-known-list-empty {
   text-align: center;
-  color: #999;
+  color: var(--tv-muted);
   font-size: 1.2em;
   display: flex;
   align-items: center;
@@ -74,13 +74,13 @@
 
 #connect-known-list-import {
   margin: 15px;
-  color: #aaa;
+  color: var(--tv-muted);
   font-size: 1.1em;
   text-align: center;
 }
 
 #connect-known-list-import a {
-  color: #5cf;
+  color: var(--tv-accent);
   text-decoration: none;
 }
 
@@ -104,7 +104,7 @@
 }
 
 #connect-known-list-list li > .lst-wrap:hover {
-  background: #444;
+  background: var(--tv-bg);
 }
 
 #connect-known-list-list li > .labels {
@@ -119,15 +119,15 @@
 #connect-known-list-list li > .labels > .type {
   display: inline-block;
   padding: 3px;
-  background: #2a7;
-  color: #fff;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
 }
 
 #connect-known-list-list li > .labels > .opt {
   display: none;
   padding: 3px;
-  background: #2a7;
-  color: #fff;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
   text-decoration: none;
   z-index: 2;
 }
@@ -140,17 +140,17 @@
 
 #connect-known-list-list li > .labels > .opt.link {
   background: #287;
-  color: #fff;
+  color: var(--tv-text);
 }
 
 #connect-known-list-list li > .labels > .opt.del {
-  background: #2a7;
-  color: #fff;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
 }
 
 #connect-known-list-list li > .labels > .opt.clr {
   background: #b71;
-  color: #fff;
+  color: var(--tv-text);
 }
 
 #connect-known-list-list li:hover > .labels > .opt,
@@ -168,7 +168,7 @@
 
 #connect-known-list-list li > .lst-wrap > h4::before {
   content: ">_";
-  color: #555;
+  color: var(--tv-border);
   font-size: 0.8em;
   margin-right: 5px;
   font-weight: normal;
@@ -177,8 +177,8 @@
 }
 
 #connect-known-list-list li > .lst-wrap > h4.highlight::before {
-  color: #eee;
-  background: #555;
+  color: var(--tv-text);
+  background: var(--tv-border);
 }
 
 #connect-known-list-presets {
@@ -187,7 +187,7 @@
 }
 
 #connect-known-list-presets.last-planel {
-  background: #3f3f3f;
+  background: var(--tv-hover);
 }
 
 #connect-known-list-presets li {
@@ -224,8 +224,8 @@
 #connect-known-list-presets li > .lst-wrap > .labels > .type {
   display: inline-block;
   padding: 3px;
-  background: #2a7;
-  color: #fff;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
   border-radius: 3px 3px 3px 0;
 }
 
@@ -237,7 +237,7 @@
 
 #connect-known-list-presets-alert {
   font-size: 1.15em;
-  color: #fff;
+  color: var(--tv-text);
   background: #c73;
   padding: 10px;
   margin-top: 10px;

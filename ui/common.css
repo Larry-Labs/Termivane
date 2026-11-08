@@ -21,6 +21,26 @@
 
 @import "~normalize.css";
 
+:root {
+  color-scheme: dark;
+  --tv-bg: #151a21;
+  --tv-panel: #1d242d;
+  --tv-raised: #252e39;
+  --tv-border: #34404e;
+  --tv-text: #e6edf3;
+  --tv-muted: #94a3b8;
+  --tv-accent: #2dd4bf;
+  --tv-accent-hover: #5eead4;
+  --tv-accent-ink: #102521;
+  --tv-hover: #2b3843;
+  --tv-danger: #fca5a5;
+  --tv-warning: #fcd34d;
+  --tv-danger-surface: #38252c;
+  --tv-warning-surface: #342e20;
+  --tv-success-surface: #19332f;
+}
+
+
 html,
 body {
   height: 100%;
@@ -55,7 +75,8 @@ body {
 }
 
 body {
-  background: #444;
+  background: var(--tv-bg);
+  color: var(--tv-text);
   font-family: Arial, Helvetica, sans-serif;
   font-size: 1em;
   position: relative;
@@ -76,7 +97,7 @@ body {
 
 .tab1 > li {
   padding: 0 15px;
-  color: #999;
+  color: var(--tv-muted);
   white-space: nowrap;
   word-wrap: none;
   text-overflow: ellipsis;
@@ -89,7 +110,7 @@ body {
 }
 
 .tab1 > li.active {
-  background: #444;
+  background: var(--tv-bg);
 }
 
 .tab1.tab1-list {
@@ -114,9 +135,9 @@ body {
   list-style-position: inside;
   margin: 0;
   height: 100%;
-  color: #aaa;
-  border-bottom: 1px solid #2a7;
-  background: #333;
+  color: var(--tv-muted);
+  border-bottom: 1px solid var(--tv-accent);
+  background: var(--tv-panel);
   padding: 0 10px;
   position: relative;
 }
@@ -146,10 +167,10 @@ body {
 }
 
 .tab2 > li.active {
-  color: #fff;
-  background: #234;
+  color: var(--tv-text);
+  background: var(--tv-raised);
   margin-bottom: -1px;
-  border-color: #2a7;
+  border-color: var(--tv-accent);
   border-style: solid;
   box-shadow: 0 -2px 2px #0002;
 }
@@ -174,7 +195,7 @@ body {
 }
 
 .lst1 > li {
-  border-bottom: 1px solid #555;
+  border-bottom: 1px solid var(--tv-border);
 }
 
 .lst1 > li:last-child {
@@ -202,19 +223,19 @@ body {
 .hlst.lstcl1 > li .lst-wrap {
   padding: 10px;
   margin: 10px;
-  background: #333;
+  background: var(--tv-panel);
   text-overflow: ellipsis;
   overflow: hidden;
-  box-shadow: 2px 2px 0 0 #222;
+  box-shadow: 2px 2px 0 0 var(--tv-panel);
 }
 
 .hlst.lstcl1 > li .lst-wrap:hover {
-  background: #3a3a3a;
-  box-shadow: 2px 2px 0 0 #222;
+  background: var(--tv-raised);
+  box-shadow: 2px 2px 0 0 var(--tv-panel);
 }
 
 .hlst.lstcl1 > li .lst-wrap:active {
-  background: #333;
+  background: var(--tv-panel);
 }
 
 .hlst.lstcl2 {
@@ -234,7 +255,7 @@ body {
 .hlst.lstcl2 > li .lst-wrap {
   padding: 10px;
   margin: 5px;
-  background: #333;
+  background: var(--tv-panel);
   text-overflow: ellipsis;
   overflow: hidden;
 }
@@ -260,8 +281,8 @@ body {
 }
 
 .icon.icon-plus1 {
-  color: #fff;
-  background: #2a7;
+  color: var(--tv-accent-ink);
+  background: var(--tv-accent);
 }
 
 .icon.icon-plus1::before {
@@ -270,8 +291,8 @@ body {
 }
 
 .icon.icon-more1 {
-  color: #fff;
-  background: #222;
+  color: var(--tv-text);
+  background: var(--tv-panel);
 }
 
 .icon.icon-more1::before {
@@ -286,13 +307,13 @@ body {
 .icon.icon-warning1::after {
   content: "!";
   font-weight: bold;
-  background: #e11;
+  background: var(--tv-danger);
   padding: 3px 13px;
 }
 
 .icon.icon-point1 {
   position: relative;
-  text-shadow: 0 0 3px #fff;
+  text-shadow: none;
 }
 
 .icon.icon-point1::after {
@@ -300,8 +321,8 @@ body {
 }
 
 .icon.icon-keyboardkey1 {
-  background: #fff;
-  color: #999;
+  background: var(--tv-text);
+  color: var(--tv-muted);
   padding: 6px 8px;
   display: inline-block;
   border-radius: 3px;
@@ -335,9 +356,11 @@ body {
 }
 
 .window.window1 {
-  background: #2a7;
-  box-shadow: 0 0 5px #0006;
-  color: #fff;
+  background: var(--tv-panel);
+  border: 1px solid var(--tv-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px #0005;
+  color: var(--tv-text);
   font-size: 1em;
   display: none;
 }
@@ -353,7 +376,7 @@ body {
   content: " ";
   width: 10px;
   height: 10px;
-  background: #2a7;
+  background: var(--tv-panel);
   transform: rotate(45deg);
 }
 
@@ -367,7 +390,7 @@ body {
   font-size: 0.9em;
   font-weight: bold;
   text-transform: uppercase;
-  color: #5cf;
+  color: var(--tv-accent);
 }
 
 .window.window1 .window-close {
@@ -392,14 +415,14 @@ body {
 .form1 > fieldset * {
   padding: 0;
   margin: 0;
-  color: #fff;
+  color: var(--tv-text);
   outline: none;
   border: 0;
   font-size: 1em;
 }
 
 .form1 > fieldset .field {
-  color: #ccc;
+  color: var(--tv-text);
   display: block;
   width: 100%;
   overflow: auto;
@@ -440,15 +463,15 @@ body {
 }
 
 .form1 > fieldset .field > .textinfo {
-  color: #fff;
+  color: var(--tv-text);
 }
 
 .form1 > fieldset .field > .textinfo > .info {
   padding: 10px;
   margin: 10px 0;
   font-size: 1.1em;
-  background: #292929;
-  border: 1px solid #444;
+  background: var(--tv-raised);
+  border: 1px solid var(--tv-bg);
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
@@ -471,11 +494,11 @@ body {
 }
 
 .form1 > fieldset .field > input::placeholder {
-  color: #666;
+  color: var(--tv-muted);
 }
 
 .form1 > fieldset .field > input:focus::placeholder {
-  color: #444;
+  color: var(--tv-muted);
 }
 
 .form1 > fieldset .field > input[type="text"],
@@ -490,10 +513,11 @@ body {
 .form1 > fieldset .field > textarea {
   width: 100%;
   padding: 10px;
-  border: 0;
-  background: #2e2e2e;
+  border: 1px solid var(--tv-border);
+  border-radius: 6px;
+  background: var(--tv-raised);
   margin-top: 5px;
-  border-bottom: 2px solid #3e3e3e;
+  border-bottom: 2px solid var(--tv-border);
 }
 
 .form1 > fieldset .field > textarea {
@@ -502,16 +526,16 @@ body {
 
 .form1 > fieldset .field.error > .error {
   margin-top: 5px;
-  color: #f55;
+  color: var(--tv-danger);
 }
 
 .form1 > fieldset .field > .message {
   margin-top: 5px;
-  color: #999;
+  color: var(--tv-muted);
 }
 
 .form1 > fieldset .field > .message * {
-  color: #999;
+  color: var(--tv-muted);
 }
 
 .form1 > fieldset .field > .message > p {
@@ -519,7 +543,7 @@ body {
 }
 
 .form1 > fieldset .field > .message > a {
-  color: #5cf;
+  color: var(--tv-accent);
 }
 
 .form1 > fieldset .field.highlight > input[type="text"],
@@ -532,8 +556,8 @@ body {
 .form1 > fieldset .field.highlight > input[type="password"],
 .form1 > fieldset .field.highlight > select,
 .form1 > fieldset .field.highlight > textarea {
-  background: #666;
-  border-bottom: 2px solid #ccc;
+  background: var(--tv-muted);
+  border-bottom: 2px solid var(--tv-text);
 }
 
 .form1 > fieldset .field.error > input[type="text"],
@@ -566,7 +590,7 @@ body {
 
 .form1 > fieldset .field > input[type="checkbox"],
 .form1 > fieldset .field > input[type="radio"] {
-  background: #2e2e2e;
+  background: var(--tv-raised);
   margin: 1px 3px 1px 1px;
 }
 
@@ -574,7 +598,7 @@ body {
 .form1 > fieldset .field > input[type="radio"]:active,
 .form1 > fieldset .field > input[type="checkbox"]:focus,
 .form1 > fieldset .field > input[type="radio"]:focus {
-  outline: 1px solid #5cf;
+  outline: 1px solid var(--tv-accent);
 }
 
 .form1 > fieldset .field > input[type="text"]:focus,
@@ -586,52 +610,54 @@ body {
 .form1 > fieldset .field > input[type="password"]:focus,
 .form1 > fieldset .field > select:focus,
 .form1 > fieldset .field > textarea:focus {
-  background: #222;
-  border-bottom: 2px solid #5cf;
+  background: var(--tv-panel);
+  border-bottom: 2px solid var(--tv-accent);
 }
 
 .form1 > fieldset .field > button {
   padding: 8px 13px;
   font-weight: normal;
-  background: #3b8;
-  border-color: #3b8;
+  background: var(--tv-accent);
+  color: var(--tv-accent-ink);
+  border-radius: 6px;
+  border-color: var(--tv-accent);
   border-width: 2px;
   border-style: solid;
 }
 
 .form1 > fieldset .field > button:focus,
 .form1 > fieldset .field > button:hover {
-  border-color: #2a7;
-  background: #3b8;
+  border-color: var(--tv-accent);
+  background: var(--tv-accent);
 }
 
 .form1 > fieldset .field > button:active {
-  background: #2a7;
-  border-color: #2a7;
+  background: var(--tv-accent);
+  border-color: var(--tv-accent);
 }
 
 .form1 > fieldset .field > button.secondary {
   float: right;
   background: transparent;
-  color: #eee;
-  border-color: #eee;
+  color: var(--tv-text);
+  border-color: var(--tv-text);
 }
 
 .form1 > fieldset .field > button.secondary:focus,
 .form1 > fieldset .field > button.secondary:hover {
-  border-color: #ddd;
-  color: #ddd;
+  border-color: var(--tv-text);
+  color: var(--tv-text);
 }
 
 .form1 > fieldset .field > button.secondary:active {
-  border-color: #666;
-  color: #666;
+  border-color: var(--tv-muted);
+  color: var(--tv-muted);
 }
 
 .form1 > fieldset .field > ul.input-suggestions {
-  background: #262626;
+  background: var(--tv-panel);
   box-shadow: 0 0 3px #0006;
-  border: 1px solid #666;
+  border: 1px solid var(--tv-muted);
   position: relative;
   margin: 3px;
 }
@@ -646,14 +672,14 @@ body {
   content: " ";
   width: 10px;
   height: 10px;
-  background: #262626;
+  background: var(--tv-panel);
   transform: rotate(45deg);
 }
 
 .form1 > fieldset .field > ul.input-suggestions::after {
   top: -6px;
   z-index: 0;
-  background: #666;
+  background: var(--tv-muted);
 }
 
 .form1 > fieldset .field > ul.input-suggestions > li {
@@ -661,13 +687,13 @@ body {
   z-index: 2;
   padding: 10px;
   cursor: pointer;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid var(--tv-panel);
 }
 
 .form1 > fieldset .field > ul.input-suggestions > li:hover,
 .form1 > fieldset .field > ul.input-suggestions > li.current {
-  background: #555;
-  border-bottom: 1px solid #555;
+  background: var(--tv-border);
+  border-bottom: 1px solid var(--tv-border);
 }
 
 .form1 > fieldset .field > ul.input-suggestions > li:first-child:hover::before,
@@ -684,7 +710,7 @@ body {
   content: " ";
   width: 10px;
   height: 10px;
-  background: #555;
+  background: var(--tv-border);
   transform: rotate(45deg);
 }
 
@@ -693,7 +719,7 @@ body {
 }
 
 .form1 > fieldset .field > ul.input-suggestions > li > .sugt-title {
-  color: #fff;
+  color: var(--tv-text);
   font-weight: bold;
   margin: 0 5px;
 }
@@ -702,4 +728,30 @@ body {
   color: #fdd;
   font-size: 0.9em;
   margin: 0 5px;
+}
+
+/* Keep keyboard navigation visible without changing terminal text colors. */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--tv-accent);
+  outline-offset: -2px;
+}
+
+.form1 > fieldset .field > button:focus-visible {
+  outline: 2px solid var(--tv-text);
+  outline-offset: 3px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--tv-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

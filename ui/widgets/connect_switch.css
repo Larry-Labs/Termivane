@@ -21,36 +21,36 @@
 
 #connect-switch {
   font-size: 0.88em;
-  color: #aaa;
+  color: var(--tv-muted);
   clear: both;
-  border-color: #555;
+  border-color: var(--tv-border);
 }
 
 #connect-switch li .label {
   padding: 2px 7px;
   margin-left: 3px;
   font-size: 0.85em;
-  background: #444;
+  background: var(--tv-bg);
   border-radius: 3px;
 }
 
 #connect-switch li.active {
-  border-color: #555;
-  background: #3a3a3a;
+  border-color: var(--tv-border);
+  background: var(--tv-raised);
 }
 
 #connect-switch li.active .label {
-  background: #888;
+  background: var(--tv-muted);
 }
 
 #connect-switch li.disabled {
-  color: #666;
+  color: var(--tv-muted);
 }
 
 #connect-switch.red {
-  border-color: #2a7;
+  border-color: var(--tv-accent);
 }
 
 #connect-switch.red li.active {
-  border-color: #2a7;
+  border-color: var(--tv-accent);
 }
