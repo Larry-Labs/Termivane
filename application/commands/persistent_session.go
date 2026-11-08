@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -78,20 +79,22 @@ func (a *SessionAttachment) stop() {
 
 // PersistentSession holds an SSH connection that survives WebSocket disconnects.
 type PersistentSession struct {
-	ID         string
-	Token      string
-	Client     *ssh.Client
-	Session    *ssh.Session
-	Stdin      io.WriteCloser
-	Stdout     io.Reader
-	Stderr     io.Reader
-	Output     *RingBuffer
-	Cols       int
-	Rows       int
-	DetachedAt time.Time
-	ExpiresAt  time.Time
-	Address    string
-	User       string
+	ID                  string
+	Token               string
+	Client              *ssh.Client
+	Session             *ssh.Session
+	Stdin               io.WriteCloser
+	Stdout              io.Reader
+	Stderr              io.Reader
+	Output              *RingBuffer
+	Cols                int
+	Rows                int
+	DetachedAt          time.Time
+	ExpiresAt           time.Time
+	Address             string
+	User                string
+	reconnectCredential string
+	reconnectAuthMethod string
 
 	mu         sync.Mutex
 	outputMu   sync.Mutex // preserves the same ordering in history and live output
@@ -182,6 +185,7 @@ func (ps *PersistentSession) Close() {
 		if ps.done != nil {
 			close(ps.done)
 		}
+		ps.reconnectCredential = ""
 		ps.mu.Unlock()
 
 		if ps.Session != nil {
@@ -191,7 +195,6 @@ func (ps *PersistentSession) Close() {
 			ps.Client.Close()
 		}
 		GlobalSessions.Unregister(ps.ID)
-		GlobalReconnectTokens.Unregister(ps.Token)
 	})
 }
 
@@ -344,15 +347,7 @@ func (r *PersistentSessionRegistry) Cleanup() {
 			r.m.Delete(key)
 			return true
 		}
-		// Clean up detached sessions that exceeded TTL
-		ps.mu.Lock()
-		detached := ps.attachment == nil && !ps.DetachedAt.IsZero()
-		detachedAt := ps.DetachedAt
-		ps.mu.Unlock()
-		if detached && now.Sub(detachedAt) > persistentSessionTTL {
-			ps.Close()
-			r.m.Delete(key)
-		}
+		// The existing 12-hour absolute lease applies to attached and detached sessions.
 		return true
 	})
 }
@@ -367,4 +362,33 @@ func (r *PersistentSessionRegistry) StartCleanupLoop() {
 			}
 		}()
 	})
+}
+
+// ReconnectInfo derives authorization from the live session, not a second registry.
+func (r *PersistentSessionRegistry) ReconnectInfo(token string) (*ReconnectInfo, bool) {
+	ps, ok := r.GetByToken(token)
+	if !ok {
+		return nil, false
+	}
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if ps.closed || !time.Now().Before(ps.ExpiresAt) {
+		return nil, false
+	}
+	info := ReconnectInfo{Address: ps.Address, User: ps.User, AuthMethod: ps.reconnectAuthMethod}
+	return &info, true
+}
+
+func (r *PersistentSessionRegistry) ResolveReconnectCredential(token, address, user, method string) (string, error) {
+	deny := errors.New("reconnect authorization is invalid for this connection")
+	ps, ok := r.GetByToken(token)
+	if !ok {
+		return "", deny
+	}
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if ps.closed || !time.Now().Before(ps.ExpiresAt) || ps.Address != address || ps.User != user || ps.reconnectAuthMethod != method {
+		return "", deny
+	}
+	return ps.reconnectCredential, nil
 }

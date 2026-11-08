@@ -77,6 +77,7 @@ const (
 	SSHAuthMethodNone                byte = 0x00
 	SSHAuthMethodPassphrase          byte = 0x01
 	SSHAuthMethodPrivateKey          byte = 0x02
+	SSHAuthMethodServerKey           byte = 0x03
 	SSHAuthMethodKeyboardInteractive byte = 0x04
 )
 
@@ -186,6 +187,10 @@ type sshClient struct {
 	resolvedAuth                         []ssh.AuthMethod
 	rawCredential                        string
 	rawAuthMethodType                    byte
+	remoteAddress                        string
+	remoteUser                           string
+	serverKeyAuth                        ssh.AuthMethod
+	serverKeyFingerprint                 string
 	persistentSession                    *PersistentSession
 	attachment                           *SessionAttachment
 }
@@ -303,6 +308,14 @@ func (d *sshClient) Bootup(
 			rErr, SSHRequestErrorBadAuthMethod)
 	}
 
+	if rData[0] == SSHAuthMethodServerKey {
+		auth, fingerprint, err := loadServerKey(userNameStr, addrStr)
+		if err != nil {
+			return nil, command.ToFSMError(err, SSHRequestErrorBadAuthMethod)
+		}
+		d.serverKeyAuth, d.serverKeyFingerprint = auth, fingerprint
+	}
+	d.remoteAddress, d.remoteUser = addrStr, userNameStr
 	authMethodBuilder, authMethodBuilderErr := d.buildAuthMethod(rData[0])
 	if authMethodBuilderErr != nil {
 		return nil, command.ToFSMError(
@@ -318,6 +331,13 @@ func (d *sshClient) Bootup(
 func (d *sshClient) buildAuthMethod(
 	methodType byte) (sshAuthMethodBuilder, error) {
 	switch methodType {
+	case SSHAuthMethodServerKey:
+		if d.serverKeyAuth == nil {
+			return nil, ErrSSHInvalidAuthMethod
+		}
+		d.rawAuthMethodType = SSHAuthMethodServerKey
+		d.resolvedAuth = []ssh.AuthMethod{d.serverKeyAuth}
+		return func([]byte) []ssh.AuthMethod { return d.resolvedAuth }, nil
 	case SSHAuthMethodNone:
 		return func(b []byte) []ssh.AuthMethod {
 			return nil
@@ -338,8 +358,10 @@ func (d *sshClient) buildAuthMethod(
 					passphrase := string(passphraseBytes)
 					if strings.HasPrefix(passphrase, "_reconnect:") {
 						token := passphrase[len("_reconnect:"):]
-						if ri, ok := GlobalReconnectTokens.Get(token); ok {
-							passphrase = ri.Credential
+						var resolveErr error
+						passphrase, resolveErr = GlobalPersistentSessions.ResolveReconnectCredential(token, d.remoteAddress, d.remoteUser, "Password")
+						if resolveErr != nil {
+							return "", resolveErr
 						}
 					}
 					d.resolvedAuth = []ssh.AuthMethod{ssh.Password(passphrase)}
@@ -365,9 +387,11 @@ func (d *sshClient) buildAuthMethod(
 					keyStr := string(privateKeyBytes)
 					if strings.HasPrefix(keyStr, "_reconnect:") {
 						token := keyStr[len("_reconnect:"):]
-						if ri, ok := GlobalReconnectTokens.Get(token); ok {
-							privateKeyBytes = []byte(ri.Credential)
+						credential, resolveErr := GlobalPersistentSessions.ResolveReconnectCredential(token, d.remoteAddress, d.remoteUser, "Private Key")
+						if resolveErr != nil {
+							return nil, resolveErr
 						}
+						privateKeyBytes = []byte(credential)
 					}
 
 					signer, signerErr := ssh.ParsePrivateKey(privateKeyBytes)
@@ -531,12 +555,21 @@ func (d *sshClient) remote(
 	}
 
 	var verifiedHostKey ssh.PublicKey
+	var hostKeyAlgorithms []string
+	if d.rawAuthMethodType == SSHAuthMethodServerKey {
+		hostKeyAlgorithms = []string{ssh.KeyAlgoED25519}
+	}
 	conn, clearConnInitialDeadline, err :=
 		d.dialRemote("tcp", address, &ssh.ClientConfig{
-			User: user,
-			Auth: authMethodBuilder((*u)[:]),
+			HostKeyAlgorithms: hostKeyAlgorithms,
+			User:              user,
+			Auth:              authMethodBuilder((*u)[:]),
 			HostKeyCallback: func(h string, r net.Addr, k ssh.PublicKey) error {
-				if err := d.confirmRemoteFingerprint(h, r, k, (*u)[:]); err != nil {
+				if d.rawAuthMethodType == SSHAuthMethodServerKey {
+					if err := verifyServerKeyHost(k, d.serverKeyFingerprint); err != nil {
+						return err
+					}
+				} else if err := d.confirmRemoteFingerprint(h, r, k, (*u)[:]); err != nil {
 					return err
 				}
 				verifiedHostKey = k
@@ -633,16 +666,19 @@ func (d *sshClient) remote(
 
 	d.sessionID = GenerateSessionID()
 	GlobalSessions.Register(d.sessionID, &SessionInfo{
-		Client:         conn,
-		Address:        address,
-		User:           user,
-		AuthMethod:     d.resolvedAuth,
-		HostKey:        ssh.FixedHostKey(verifiedHostKey),
-		ReuseTransport: d.rawAuthMethodType == SSHAuthMethodKeyboardInteractive,
+		Client:            conn,
+		Address:           address,
+		User:              user,
+		AuthMethod:        d.resolvedAuth,
+		HostKey:           ssh.FixedHostKey(verifiedHostKey),
+		HostKeyAlgorithms: VerifiedHostKeyAlgorithms(verifiedHostKey),
+		ReuseTransport:    d.rawAuthMethodType == SSHAuthMethodKeyboardInteractive,
 	})
 
 	authMethodStr := "none"
 	switch d.rawAuthMethodType {
+	case SSHAuthMethodServerKey:
+		authMethodStr = "Server Key"
 	case SSHAuthMethodPassphrase:
 		authMethodStr = "Password"
 	case SSHAuthMethodPrivateKey:
@@ -652,29 +688,24 @@ func (d *sshClient) remote(
 	}
 
 	reconnectToken := GenerateReconnectToken()
-	GlobalReconnectTokens.Register(reconnectToken, &ReconnectInfo{
-		Address:    address,
-		User:       user,
-		Credential: d.rawCredential,
-		AuthMethod: authMethodStr,
-		ExpiresAt:  time.Now().Add(12 * time.Hour),
-	})
 
 	// Create persistent session
 	ps := &PersistentSession{
-		ID:        d.sessionID,
-		Token:     reconnectToken,
-		Client:    conn,
-		Session:   session,
-		Stdin:     in,
-		Stdout:    out,
-		Stderr:    errOut,
-		Output:    NewRingBuffer(ringBufferSize),
-		Cols:      40,
-		Rows:      80,
-		ExpiresAt: time.Now().Add(persistentSessionTTL),
-		Address:   address,
-		User:      user,
+		ID:                  d.sessionID,
+		Token:               reconnectToken,
+		Client:              conn,
+		Session:             session,
+		Stdin:               in,
+		Stdout:              out,
+		Stderr:              errOut,
+		Output:              NewRingBuffer(ringBufferSize),
+		Cols:                40,
+		Rows:                80,
+		ExpiresAt:           time.Now().Add(persistentSessionTTL),
+		reconnectCredential: d.rawCredential,
+		reconnectAuthMethod: authMethodStr,
+		Address:             address,
+		User:                user,
 	}
 	attachment, _, attachErr := ps.Attach()
 	if attachErr != nil {

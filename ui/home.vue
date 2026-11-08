@@ -150,6 +150,7 @@ import StatusWidget from "./widgets/status.vue";
 import Connector from "./widgets/connector.vue";
 import Tabs from "./widgets/tabs.vue";
 import { sessionPageTitle } from "./session_title.js";
+import { readRecoveryEntries } from "./recovery_storage.js";
 import TabWindow from "./widgets/tab_window.vue";
 import Screens from "./widgets/screens.vue";
 
@@ -214,28 +215,14 @@ export default {
 
     let hasRecoverableSessions = false;
     try {
-      const maxAge = 12 * 60 * 60 * 1000;
-      const rawTabs = sessionStorage.getItem("sshwifty_auto_reconnect_tabs");
-      if (rawTabs) {
-        const tabs = JSON.parse(rawTabs);
-        hasRecoverableSessions =
-          Array.isArray(tabs) &&
-          tabs.some((t) => t.token && Date.now() - (t.ts || 0) <= maxAge);
-      }
-      if (!hasRecoverableSessions) {
-        const rawSingle = sessionStorage.getItem("sshwifty_auto_reconnect");
-        if (rawSingle) {
-          const single = JSON.parse(rawSingle);
-          hasRecoverableSessions =
-            single.token && Date.now() - (single.ts || 0) <= maxAge;
-        }
-      }
+      hasRecoverableSessions = readRecoveryEntries(sessionStorage).length > 0;
     } catch (_e) {
       void _e;
     }
 
     return {
       ticker: null,
+      recoveryErrors: [],
       reconnecting: hasRecoverableSessions,
       windows: {
         delay: false,
@@ -279,6 +266,9 @@ export default {
     }, 1000);
 
     if (this.query.length > 1 && this.query.indexOf("+") === 0) {
+      // Explicit navigation takes precedence over automatic restoration.
+      // Keep saved entries intact, but expose the interactive connection flow.
+      this.reconnecting = false;
       this.connectLaunch(this.query.slice(1, this.query.length), (success) => {
         if (!success) {
           return;
@@ -561,8 +551,6 @@ export default {
 
       this.addToTab(data);
 
-      this.$emit("tab-opened", this.tab.tabs);
-
       this.startAutoReconnectSaver();
     },
     startAutoReconnectSaver() {
@@ -574,164 +562,52 @@ export default {
       setTimeout(() => this.saveAutoReconnect(), 1000);
     },
     saveAutoReconnect() {
+      if (this.reconnecting) return;
       try {
-        const tabs = this.tab.tabs;
-
-        // During active reconnect, never overwrite saved data — it's the
-        // source-of-truth for the tabs we're still restoring
-        if (this.reconnecting) {
-          return;
-        }
-
-        if (tabs.length === 0) {
-          sessionStorage.removeItem("sshwifty_auto_reconnect_tabs");
-          sessionStorage.removeItem("sshwifty_auto_reconnect");
-          return;
-        }
-
-        // Load existing saved tabs to preserve data for tabs without tokens yet
-        let existingEntries = [];
-        try {
-          const raw = sessionStorage.getItem("sshwifty_auto_reconnect_tabs");
-          if (raw) {
-            existingEntries = JSON.parse(raw) || [];
-          }
-        } catch (_e) {
-          void _e;
-        }
-
-        const knowns = this.connector.historyRec.all();
-        const entries = [];
-
-        for (let i = 0; i < tabs.length; i++) {
-          const control = tabs[i].control;
-          const token = control ? control.reconnectToken : null;
-
-          if (token) {
-            let userData = null;
-
-            const tabName = tabs[i].name || "";
-            const atIdx = tabName.indexOf("@");
-            let tabUser = "";
-            let tabHost = tabName;
-            if (atIdx > 0) {
-              tabUser = tabName.slice(0, atIdx);
-              tabHost = tabName.slice(atIdx + 1);
-            }
-
-            for (let k = knowns.length - 1; k >= 0; k--) {
-              const kn = knowns[k];
-              if (!kn.data || !kn.data.user) continue;
-              if (kn.data.user.startsWith("_reattach:")) continue;
-              if (kn.data.host === tabHost && kn.data.user === tabUser) {
-                userData = {
-                  host: kn.data.host,
-                  user: kn.data.user,
-                  authentication: kn.data.authentication,
-                  charset: kn.data.charset,
-                  fingerprint: kn.data.fingerprint,
-                  tabColor: kn.data.tabColor,
-                };
-                break;
-              }
-            }
-
-            if (!userData && tabUser && tabHost) {
-              userData = {
-                host: tabHost,
-                user: tabUser,
-                authentication: "Password",
-                charset: "utf-8",
-                fingerprint: "",
-                tabColor: "",
-              };
-            }
-
-            if (!userData) {
-              const existing = existingEntries.find((e) => e.token === token);
-              if (existing) userData = existing.data;
-            }
-
-            if (userData) {
-              entries.push({
-                token: token,
-                title: tabs[i].name || "",
-                type: "SSH",
-                data: userData,
-                ts: Date.now(),
-              });
-            }
-          } else if (i < existingEntries.length && existingEntries[i].token) {
-            entries.push(existingEntries[i]);
-          }
-        }
-
-        if (entries.length > 0) {
-          sessionStorage.setItem(
-            "sshwifty_auto_reconnect_tabs",
-            JSON.stringify(entries),
-          );
-
-          const first = entries[0];
-          sessionStorage.setItem(
-            "sshwifty_auto_reconnect",
-            JSON.stringify({
-              token: first.token,
-              uid: "",
-              title: first.title,
-              type: first.type,
-              data: first.data,
-              ts: Date.now(),
-            }),
-          );
-        }
+        const entries = this.tab.tabs.flatMap((tab) => {
+          const token = tab.control?.reconnectToken;
+          if (!token || !tab.connectionData) return [];
+          // A token gets one timestamp, rather than a sliding 12-hour window.
+          if (!tab.recoveryTimestamp) tab.recoveryTimestamp = Date.now();
+          return [
+            {
+              token,
+              title: tab.name,
+              type: "SSH",
+              data: tab.connectionData,
+              ts: tab.recoveryTimestamp,
+            },
+          ];
+        });
+        sessionStorage.setItem(
+          "sshwifty_auto_reconnect_tabs",
+          JSON.stringify(entries),
+        );
+        sessionStorage.removeItem("sshwifty_auto_reconnect");
       } catch (_e) {
-        // sessionStorage may be unavailable
+        // Browser storage can be unavailable; live connections remain usable.
       }
     },
     async tryAutoReconnect() {
       try {
-        // Try multi-tab format first
-        let entries = [];
-        const rawTabs = sessionStorage.getItem("sshwifty_auto_reconnect_tabs");
-        if (rawTabs) {
-          const parsed = JSON.parse(rawTabs);
-          entries = Array.isArray(parsed) ? parsed : [];
-        } else {
-          // Fall back to legacy single-tab format
-          const raw = sessionStorage.getItem("sshwifty_auto_reconnect");
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            entries = parsed && typeof parsed === "object" ? [parsed] : [];
-          }
-        }
-
-        if (entries.length === 0) {
-          this.reconnecting = false;
-          return;
-        }
-
-        const maxAge = 12 * 60 * 60 * 1000;
-        const validEntries = entries.filter((saved) => {
-          const elapsed = Date.now() - (saved.ts || 0);
-          return elapsed <= maxAge && saved.token;
-        });
-
+        const validEntries = readRecoveryEntries(sessionStorage);
         if (validEntries.length === 0) {
           this.reconnecting = false;
           return;
         }
-
+        this.recoveryErrors = [];
         // Pre-warm the WebSocket connection while checking reattach API
         this.connection.get(this.socket).catch(() => {});
 
-        let anySuccess = false;
         const survivingTokens = [];
         for (let si = 0; si < validEntries.length; si++) {
-          const ok = await this.tryReattachOrReconnect(validEntries[si]);
+          const ok = await this.tryReattachSession(validEntries[si]);
           if (ok) {
-            anySuccess = true;
             survivingTokens.push(validEntries[si]);
+          } else {
+            this.recoveryErrors.push(
+              validEntries[si].title || validEntries[si].data.host,
+            );
           }
         }
 
@@ -749,72 +625,67 @@ export default {
         }
 
         this.reconnecting = false;
+        this.saveAutoReconnect();
+        if (this.recoveryErrors.length) {
+          alert(
+            "Some sessions could not be restored. Reconnect them from Known remotes to confirm the server and credentials: " +
+              this.recoveryErrors.join(", "),
+          );
+        }
       } catch (_e) {
         this.reconnecting = false;
         sessionStorage.removeItem("sshwifty_auto_reconnect");
         sessionStorage.removeItem("sshwifty_auto_reconnect_tabs");
       }
     },
-    waitForConnectorFree() {
-      return new Promise((resolve) => {
-        const check = () => {
-          if (!this.connector.acquired) {
-            resolve();
-          } else {
-            setTimeout(check, 50);
+    async connectIndependent(known) {
+      let wizard;
+      try {
+        const conn = await this.connection.get(this.socket);
+        const connector = this.getConnectorByType(known.type);
+        if (!connector) return false;
+        wizard = connector.execute(
+          conn,
+          this.controls,
+          this.connector.historyRec,
+          known.data,
+          known.session,
+          known.keptSessions,
+          () => {
+            this.connector.knowns = this.connector.historyRec.all();
+          },
+        );
+        while (true) {
+          const next = await wizard.next();
+          if (next.type() === 1) {
+            // A background recovery cannot approve host keys or answer challenges.
+            // Cancel it and let the user reconnect through the normal visible wizard.
+            next.data().cancel();
+            wizard.close();
+            return null; // Interaction is required; do not attempt another background path.
           }
-        };
-        check();
-      });
-    },
-    connectIndependent(known) {
-      const self = this;
-      return new Promise((resolve) => {
-        (async () => {
-          try {
-            const conn = await self.connection.get(self.socket);
-            const connector = self.getConnectorByType(known.type);
-            if (!connector) {
-              resolve(false);
-              return;
-            }
-
-            const wizard = connector.execute(
-              conn,
-              self.controls,
-              self.connector.historyRec,
-              known.data,
-              known.session,
-              known.keptSessions,
-              () => {
-                self.connector.knowns = self.connector.historyRec.all();
-              },
-            );
-
-            // Drive the wizard to completion without connector.vue
-            // NEXT_PROMPT=1, NEXT_WAIT=2, NEXT_DONE=3
-            while (true) {
-              const next = await wizard.next();
-              const type = next.type();
-              if (type === 3) {
-                const data = next.data();
-                if (data.success()) {
-                  self.addToTab(data.data());
-                  self.$emit("tab-opened", self.tab.tabs);
-                  self.startAutoReconnectSaver();
-                }
-                resolve(data.success());
-                return;
+          if (next.type() === 3) {
+            const result = next.data();
+            if (result.success()) {
+              const data = result.data();
+              if (known.recoveryData) {
+                data.connectionData = { ...known.recoveryData };
+                delete data.connectionData.fingerprint;
               }
+              data.recoveryTimestamp = known.recoveryTimestamp;
+              await this.addToTab(data);
+              this.startAutoReconnectSaver();
             }
-          } catch (_e) {
-            resolve(false);
+            return result.success();
           }
-        })();
-      });
+        }
+      } catch (_e) {
+        if (wizard) wizard.close();
+        return false;
+      }
     },
-    async tryReattachOrReconnect(saved) {
-      // Try reattach first (preserves SSH session + terminal history)
+    async tryReattachSession(saved) {
+      // Reattach only: preserve the existing SSH process and terminal history.
       try {
         const reattachResp = await fetch(
           "/sshwifty/session/reattach?token=" + encodeURIComponent(saved.token),
@@ -825,6 +696,8 @@ export default {
             uid: saved.uid || "",
             title: saved.title,
             type: saved.type,
+            recoveryData: saved.data,
+            recoveryTimestamp: saved.ts,
             data: {
               host: saved.data.host,
               user: "_reattach:" + saved.token,
@@ -832,44 +705,30 @@ export default {
               authentication: "None",
               charset: saved.data.charset,
               fingerprint: saved.data.fingerprint,
+              fingerprintPin: saved.data.fingerprintPin,
               tabColor: saved.data.tabColor,
             },
             session: { credential: "" },
             keptSessions: [],
           });
+          if (ok === null) return false;
           if (ok) return true;
         }
       } catch (_reattachErr) {
         void _reattachErr;
       }
 
-      // Fall back to reconnect (new SSH session)
-      try {
-        const resp = await fetch(
-          "/sshwifty/reconnect?token=" + encodeURIComponent(saved.token),
-        );
-        if (!resp.ok) return false;
-        await resp.json();
-
-        const ok = await this.connectIndependent({
-          uid: saved.uid || "",
-          title: saved.title,
-          type: saved.type,
-          data: saved.data,
-          session: { credential: "_reconnect:" + saved.token },
-          keptSessions: ["credential"],
-        });
-        return ok;
-      } catch (_reconnectErr) {
-        void _reconnectErr;
-        return false;
-      }
+      // Never create a new remote SSH process as a side effect of failed reattachment.
+      // A fresh connection must go through the ordinary visible connection wizard.
+      return false;
     },
     async addToTab(data) {
       await this.switchTab(
         this.tab.tabs.push({
           id: this.tab.lastID++,
           name: data.name,
+          connectionData: data.connectionData,
+          recoveryTimestamp: data.recoveryTimestamp || null,
           info: data.info,
           control: data.control,
           ui: data.ui,
@@ -928,8 +787,6 @@ export default {
       }
 
       this.removeFromTab(index);
-
-      this.$emit("tab-closed", this.tab.tabs);
     },
     tabStopped(index, reason) {
       if (index < 0 || index >= this.tab.tabs.length) return;
@@ -967,8 +824,6 @@ export default {
       this.tabMessage(index, msg, "info");
     },
     tabUpdated(index) {
-      this.$emit("tab-updated", this.tab.tabs);
-
       this.tab.tabs[index].indicator.updated = index !== this.tab.current;
     },
   },

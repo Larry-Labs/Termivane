@@ -33,7 +33,7 @@ func (c reconnectController) Get(
 		return NewError(http.StatusBadRequest, "missing token")
 	}
 
-	info, ok := commands.GlobalReconnectTokens.Get(token)
+	info, ok := commands.GlobalPersistentSessions.ReconnectInfo(token)
 	if !ok {
 		return NewError(http.StatusNotFound, "token expired or invalid")
 	}

@@ -913,7 +913,7 @@ export default {
         this.refreshFiles();
       }
       this.$nextTick(() => {
-        this.refit();
+        this.fit();
       });
     },
     startResize(e) {

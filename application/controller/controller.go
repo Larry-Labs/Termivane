@@ -162,7 +162,6 @@ const (
 // Builder returns a http controller builder
 func Builder(cmds command.Commands) server.HandlerBuilder {
 	socketBuffers := command.NewBufferPool(socketBufferSize)
-	commands.GlobalReconnectTokens.StartCleanupLoop()
 	commands.GlobalPersistentSessions.StartCleanupLoop()
 	return func(
 		commonCfg configuration.Common,

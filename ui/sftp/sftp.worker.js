@@ -1,274 +1,260 @@
 let ws = null;
 let connected = false;
-let pendingResolveId = null;
-let downloadChunks = [];
-let downloadPendingId = null;
+let operation = null;
 let heartbeat = null;
-let uploadInitCallback = null;
 
 function sendToMain(msg) {
   self.postMessage(msg);
 }
 
+function stopHeartbeat() {
+  if (heartbeat !== null) clearInterval(heartbeat);
+  heartbeat = null;
+}
+
 function startHeartbeat() {
   stopHeartbeat();
   heartbeat = setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (connected && ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ action: "ping" }));
     }
   }, 30000);
 }
 
-function stopHeartbeat() {
-  if (heartbeat) {
-    clearInterval(heartbeat);
-    heartbeat = null;
-  }
+function finishOperation(result, error) {
+  if (!operation) return;
+  const id = operation.id;
+  operation = null;
+  sendToMain({ type: "response", id, result, error });
 }
 
-function waitForDrain(cb) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (ws.bufferedAmount < 512 * 1024) {
-    cb();
-  } else {
-    setTimeout(() => waitForDrain(cb), 5);
-  }
+function protocolError(message = "Unexpected SFTP response") {
+  finishOperation(undefined, message);
+  // The server protocol is ordered, without request IDs. Once ordering is
+  // invalid, discard this transport instead of assigning replies to later work.
+  ws?.close();
 }
 
 function handleTextMessage(text) {
   let msg;
   try {
     msg = JSON.parse(text);
-  } catch (_e) {
+  } catch {
+    protocolError();
     return;
   }
-
-  if (pendingResolveId && uploadInitCallback) {
-    if (msg.type !== "error") {
-      pendingResolveId = null;
-      const cb = uploadInitCallback;
-      uploadInitCallback = null;
-      cb();
-    } else {
-      const realId = pendingResolveId.replace(/_init$/, "");
-      pendingResolveId = null;
-      uploadInitCallback = null;
-      sendToMain({
-        type: "response",
-        id: realId,
-        error: msg.message,
-      });
-    }
+  if (!msg || typeof msg !== "object") {
+    protocolError();
     return;
   }
+  if (msg.type === "pong") return;
 
   if (!connected) {
     if (msg.type === "success" && msg.message === "connected") {
       connected = true;
       startHeartbeat();
       sendToMain({ type: "connected" });
-      return;
-    }
-    if (msg.type === "error") {
-      sendToMain({ type: "connectError", error: msg.message });
-      return;
-    }
-  }
-
-  if (msg.type === "pong" || msg.type === "download_start") {
-    return;
-  }
-
-  if (msg.type === "download_end" && downloadPendingId !== null) {
-    const blob = new Blob(downloadChunks);
-    downloadChunks = [];
-    const id = downloadPendingId;
-    downloadPendingId = null;
-    sendToMain({ type: "response", id: id, result: blob });
-    return;
-  }
-
-  if (msg.type === "error" && downloadPendingId !== null) {
-    downloadChunks = [];
-    const id = downloadPendingId;
-    downloadPendingId = null;
-    sendToMain({ type: "response", id: id, error: msg.message });
-    return;
-  }
-
-  if (pendingResolveId !== null) {
-    const id = pendingResolveId;
-    pendingResolveId = null;
-    if (msg.type === "error") {
-      sendToMain({ type: "response", id: id, error: msg.message });
     } else {
-      sendToMain({ type: "response", id: id, result: msg });
+      sendToMain({
+        type: "connectError",
+        error: msg.message || "Unexpected SFTP handshake response",
+      });
+      ws?.close();
     }
+    return;
   }
+
+  if (!operation) {
+    protocolError();
+    return;
+  }
+  if (msg.type === "error") {
+    finishOperation(undefined, msg.message || "SFTP operation failed");
+    return;
+  }
+  switch (operation.stage) {
+    case "list":
+      if (msg.type === "list") {
+        finishOperation(msg);
+        return;
+      }
+      break;
+    case "mutation":
+    case "upload-result":
+      if (msg.type === "success" && msg.message === "ok") {
+        finishOperation(msg);
+        return;
+      }
+      break;
+    case "upload-ready":
+      if (msg.type === "success" && msg.message === "ready") {
+        operation.stage = "upload-stream";
+        sendUpload(operation);
+        return;
+      }
+      break;
+    case "download-start":
+      if (msg.type === "download_start") {
+        // Older backends omit a zero total; no received bytes are allowed then.
+        const total = msg.total === undefined ? 0 : msg.total;
+        if (!Number.isSafeInteger(total) || total < 0) {
+          protocolError("Invalid SFTP download size");
+          return;
+        }
+        operation.total = total;
+        operation.received = 0;
+        operation.stage = "download-stream";
+        return;
+      }
+      break;
+    case "download-stream":
+      if (msg.type === "download_end") {
+        if (operation.received !== operation.total) {
+          protocolError("Incomplete SFTP download");
+          return;
+        }
+        finishOperation(new Blob(operation.chunks));
+        return;
+      }
+      break;
+  }
+  protocolError();
 }
 
 function handleBinaryMessage(data) {
-  if (downloadPendingId !== null) {
-    downloadChunks.push(data);
+  if (operation?.stage !== "download-stream") {
+    protocolError();
+    return;
   }
+  if (data.byteLength > operation.total - operation.received) {
+    protocolError("SFTP download exceeds declared size");
+    return;
+  }
+  operation.received += data.byteLength;
+  operation.chunks.push(data);
 }
 
 function doConnect(sessionID, origin, protocol) {
-  const url = `${protocol}//${origin}/sshwifty/sftp?session=${sessionID}`;
-  ws = new WebSocket(url);
-  ws.binaryType = "arraybuffer";
-
-  ws.onopen = () => {};
-
-  ws.onmessage = (ev) => {
-    if (typeof ev.data === "string") {
-      handleTextMessage(ev.data);
-    } else {
-      handleBinaryMessage(ev.data);
-    }
+  const socket = new WebSocket(
+    `${protocol}//${origin}/sshwifty/sftp?session=${sessionID}`,
+  );
+  ws = socket;
+  connected = false;
+  socket.binaryType = "arraybuffer";
+  socket.onmessage = (ev) => {
+    if (ws !== socket) return;
+    if (typeof ev.data === "string") handleTextMessage(ev.data);
+    else handleBinaryMessage(ev.data);
   };
-
-  ws.onerror = () => {
-    if (!connected) {
+  socket.onerror = () => {
+    if (ws !== socket) return;
+    if (!connected)
       sendToMain({
         type: "connectError",
         error: "SFTP WebSocket connection failed",
       });
-    }
+    socket.close();
   };
-
-  ws.onclose = () => {
+  socket.onclose = () => {
+    if (ws !== socket) return;
     const wasConnected = connected;
     connected = false;
+    ws = null;
     stopHeartbeat();
-    if (pendingResolveId !== null) {
-      const realId = pendingResolveId.replace(/_init$/, "");
-      sendToMain({
-        type: "response",
-        id: realId,
-        error: "SFTP connection closed",
-      });
-      pendingResolveId = null;
-    }
-    if (downloadPendingId !== null) {
-      sendToMain({
-        type: "response",
-        id: downloadPendingId,
-        error: "SFTP connection closed",
-      });
-      downloadPendingId = null;
-      downloadChunks = [];
-    }
-    if (wasConnected) {
-      sendToMain({ type: "disconnected" });
-    }
+    finishOperation(undefined, "SFTP connection closed");
+    sendToMain(
+      wasConnected
+        ? { type: "disconnected" }
+        : {
+            type: "connectError",
+            error: "SFTP connection closed before handshake",
+          },
+    );
   };
+}
+
+function beginOperation(id, stage, fields = {}) {
+  if (!connected || ws?.readyState !== WebSocket.OPEN) {
+    sendToMain({ type: "response", id, error: "SFTP not connected" });
+    return false;
+  }
+  if (operation) {
+    sendToMain({
+      type: "response",
+      id,
+      error: "SFTP operation already in progress",
+    });
+    return false;
+  }
+  operation = { id, stage, ...fields };
+  return true;
 }
 
 function doRequest(id, obj) {
-  pendingResolveId = id;
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    pendingResolveId = null;
-    sendToMain({ type: "response", id: id, error: "SFTP not connected" });
-    return;
+  if (beginOperation(id, obj.action === "list" ? "list" : "mutation")) {
+    ws.send(JSON.stringify(obj));
   }
-  ws.send(JSON.stringify(obj));
 }
 
-function doUpload(id, path, fileData, fileSize) {
-  pendingResolveId = id + "_init";
+function sendUpload(upload) {
+  // A close/error invalidates the operation, including scheduled drain work.
+  if (operation !== upload || !connected || ws?.readyState !== WebSocket.OPEN)
+    return;
+  if (ws.bufferedAmount >= 512 * 1024) {
+    setTimeout(() => sendUpload(upload), 5);
+    return;
+  }
+  let count = 0;
+  while (upload.offset < upload.size && count++ < 8) {
+    const end = Math.min(upload.offset + 64 * 1024, upload.size);
+    ws.send(upload.data.slice(upload.offset, end));
+    upload.offset = end;
+    if (ws.bufferedAmount >= 512 * 1024) break;
+  }
+  const pct = upload.size
+    ? Math.floor((upload.offset / upload.size) * 100)
+    : 100;
+  sendToMain({
+    type: "uploadProgress",
+    id: upload.id,
+    pct,
+    speed: (upload.offset / Math.max(1, Date.now() - upload.started)) * 1000,
+  });
+  if (upload.offset < upload.size || ws.bufferedAmount >= 512 * 1024) {
+    setTimeout(() => sendUpload(upload), 5);
+  } else {
+    upload.stage = "upload-result";
+    upload.data = null;
+    ws.send(JSON.stringify({ action: "upload_done" }));
+  }
+}
 
-  uploadInitCallback = () => {
-    stopHeartbeat();
-    const chunkSize = 64 * 1024;
-    let offset = 0;
-    const uploadStart = Date.now();
-    let lastSpeedCheck = uploadStart;
-    let lastSpeedOffset = 0;
-    let currentSpeed = 0;
-    let lastPct = -1;
-
-    const reportProgress = () => {
-      const now = Date.now();
-      const elapsed = now - lastSpeedCheck;
-      if (elapsed >= 300) {
-        currentSpeed = ((offset - lastSpeedOffset) / elapsed) * 1000;
-        lastSpeedCheck = now;
-        lastSpeedOffset = offset;
-      }
-      const pct = Math.min(100, Math.round((offset / fileSize) * 100));
-      if (pct !== lastPct) {
-        lastPct = pct;
-        const reportSpeed =
-          currentSpeed > 0
-            ? currentSpeed
-            : (offset / Math.max(1, Date.now() - uploadStart)) * 1000;
-        sendToMain({
-          type: "uploadProgress",
-          id: id,
-          pct: pct,
-          speed: reportSpeed,
-        });
-      }
-    };
-
-    const sendChunks = () => {
-      let sent = 0;
-      while (offset < fileSize && sent < 8) {
-        const end = Math.min(offset + chunkSize, fileSize);
-        const piece = fileData.slice(offset, end);
-        ws.send(piece);
-        offset = end;
-        sent++;
-
-        if (ws.bufferedAmount > 512 * 1024) {
-          reportProgress();
-          waitForDrain(sendChunks);
-          return;
-        }
-      }
-
-      reportProgress();
-
-      if (offset < fileSize) {
-        setTimeout(sendChunks, 0);
-      } else {
-        waitForDrain(() => {
-          startHeartbeat();
-          pendingResolveId = id;
-          ws.send(JSON.stringify({ action: "upload_done" }));
-        });
-      }
-    };
-
-    sendChunks();
-  };
-
-  ws.send(JSON.stringify({ action: "upload", path: path, size: fileSize }));
+function doUpload(id, path, data, size) {
+  if (
+    beginOperation(id, "upload-ready", {
+      data,
+      size,
+      offset: 0,
+      started: Date.now(),
+    })
+  ) {
+    ws.send(JSON.stringify({ action: "upload", path, size }));
+  }
 }
 
 function doDownload(id, path) {
-  downloadChunks = [];
-  downloadPendingId = id;
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    downloadPendingId = null;
-    sendToMain({ type: "response", id: id, error: "SFTP not connected" });
-    return;
+  if (beginOperation(id, "download-start", { chunks: [] })) {
+    ws.send(JSON.stringify({ action: "download", path }));
   }
-  ws.send(JSON.stringify({ action: "download", path: path }));
 }
 
 function doClose() {
   stopHeartbeat();
-  uploadInitCallback = null;
-  pendingResolveId = null;
-  downloadPendingId = null;
-  downloadChunks = [];
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
+  finishOperation(undefined, "SFTP connection closed");
+  const socket = ws;
+  ws = null;
   connected = false;
+  socket?.close();
 }
 
 self.onmessage = (ev) => {

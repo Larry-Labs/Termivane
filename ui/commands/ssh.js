@@ -29,6 +29,10 @@ import * as presets from "./presets.js";
 import * as strings from "./string.js";
 import { credentials } from "./credentials.js";
 import {
+  resolveFingerprint,
+  rememberFingerprint,
+} from "./host_fingerprints.js";
+import {
   parseKeyboardChallenge,
   encodeKeyboardAnswers,
 } from "./keyboard_interactive.js";
@@ -36,6 +40,7 @@ import {
 const AUTHMETHOD_NONE = 0x00;
 const AUTHMETHOD_PASSPHRASE = 0x01;
 const AUTHMETHOD_PRIVATE_KEY = 0x02;
+const AUTHMETHOD_SERVER_KEY = 0x03;
 const AUTHMETHOD_KEYBOARD_INTERACTIVE = 0x04;
 
 const COMMAND_ID = 0x00;
@@ -460,7 +465,7 @@ const initialFieldDef = {
       "cause the login to fail",
     type: "radio",
     value: "",
-    example: "Password,Private Key,Keyboard Interactive,None",
+    example: "Password,Private Key,Server Key,Keyboard Interactive,None",
     readonly: false,
     suggestions(input) {
       return [];
@@ -469,6 +474,7 @@ const initialFieldDef = {
       switch (d) {
         case "Password":
         case "Private Key":
+        case "Server Key":
         case "Keyboard Interactive":
         case "None":
           return "";
@@ -523,6 +529,8 @@ const initialFieldDef = {
  */
 function getAuthMethodFromStr(d) {
   switch (d) {
+    case "Server Key":
+      return AUTHMETHOD_SERVER_KEY;
     case "None":
       return AUTHMETHOD_NONE;
 
@@ -644,6 +652,12 @@ class Wizard {
   buildCommand(sender, configInput, sessionData) {
     let self = this;
 
+    configInput.fingerprint = resolveFingerprint(
+      configInput.host,
+      configInput.fingerprint,
+      configInput.fingerprintPin,
+    );
+
     let config = {
       user: common.strToUint8Array(configInput.user),
       auth: getAuthMethodFromStr(configInput.authentication),
@@ -712,35 +726,49 @@ class Wizard {
 
         self.step.resolve(
           self.stepSuccessfulDone(
-            new command.Result(
-              displayName,
-              self.info,
-              self.controls.build({
-                charset: configInput.charset,
-                tabColor: configInput.tabColor,
-                send(data) {
-                  return commandHandler.sendData(data);
+            Object.assign(
+              new command.Result(
+                displayName,
+                self.info,
+                self.controls.build({
+                  charset: configInput.charset,
+                  tabColor: configInput.tabColor,
+                  send(data) {
+                    return commandHandler.sendData(data);
+                  },
+                  close() {
+                    return commandHandler.sendClose();
+                  },
+                  resize(rows, cols) {
+                    return commandHandler.sendResize(rows, cols);
+                  },
+                  events: commandHandler.events,
+                }),
+                self.controls.ui(),
+              ),
+              {
+                connectionData: {
+                  host: configInput.host,
+                  user: configInput.displayUser || configInput.user,
+                  authentication: configInput.authentication,
+                  charset: configInput.charset,
+                  tabColor: configInput.tabColor || "",
+                  fingerprintPin: configInput.fingerprintPin || "",
                 },
-                close() {
-                  return commandHandler.sendClose();
-                },
-                resize(rows, cols) {
-                  return commandHandler.sendResize(rows, cols);
-                },
-                events: commandHandler.events,
-              }),
-              self.controls.ui(),
+              },
             ),
           ),
         );
 
         if (!configInput.user.startsWith("_reattach:")) {
+          const historyConfig = { ...configInput };
+          delete historyConfig.fingerprint;
           self.history.save(
             self.info.name() + ":" + configInput.user + "@" + configInput.host,
             configInput.user + "@" + configInput.host,
             new Date(),
             self.info,
-            configInput,
+            historyConfig,
             sessionData,
             keptSessions,
           );
@@ -764,6 +792,11 @@ class Wizard {
             },
             (newFingerprint) => {
               configInput.fingerprint = newFingerprint;
+              if (!rememberFingerprint(configInput.host, newFingerprint)) {
+                alert(
+                  "Unable to save server fingerprint. You may be asked again next time.",
+                );
+              }
             },
           ),
         );
@@ -819,7 +852,7 @@ class Wizard {
               host: r.host,
               charset: r.encoding,
               tabColor: self.preset ? self.preset.tabColor() : "",
-              fingerprint: self.preset
+              fingerprintPin: self.preset
                 ? self.preset.metaDefault("Fingerprint", "")
                 : "",
             },
@@ -894,7 +927,7 @@ class Wizard {
         ? "Do you recognize this server?"
         : "Danger! Server fingerprint has changed!",
       !fingerprintChanged
-        ? "Verify server fingerprint displayed below"
+        ? "Verify this fingerprint once. It will be remembered in this browser."
         : "It's very unusual. Please verify the new server fingerprint below",
       !fingerprintChanged ? "Yes, I do" : "I'm aware of the change",
       (r) => {
@@ -1126,6 +1159,7 @@ class Executer extends Wizard {
           charset: self.config.charset ? self.config.charset : "utf-8",
           tabColor: self.config.tabColor ? self.config.tabColor : "",
           fingerprint: self.config.fingerprint,
+          fingerprintPin: self.config.fingerprintPin,
         },
         self.session,
       );

@@ -7,6 +7,8 @@ export class SFTPClient {
   constructor() {
     this.worker = null;
     this.connected = false;
+    this._connectionPromise = null;
+    this._epoch = 0;
     this._connectResolve = null;
     this._connectReject = null;
     this._pending = new Map();
@@ -17,44 +19,75 @@ export class SFTPClient {
     this._reconnectAttempt = 0;
     this._intentionallyClosed = false;
     this._reconnectTimeoutId = null;
+    this._reconnectGeneration = 0;
   }
 
   connect(sessionID) {
+    if (this._sessionID === sessionID) {
+      if (this.isConnected()) return Promise.resolve();
+      if (this._connectionPromise) return this._connectionPromise;
+    } else if (this._sessionID !== null) {
+      this.close();
+    }
+    if (this._reconnectTimeoutId !== null)
+      clearTimeout(this._reconnectTimeoutId);
+    this._reconnectTimeoutId = null;
+    this._reconnecting = false;
+    this._reconnectGeneration++;
     this._sessionID = sessionID;
     this._intentionallyClosed = false;
     this._reconnectAttempt = 0;
     return this._doConnect();
   }
 
+  _settleConnect(error) {
+    const resolve = this._connectResolve,
+      reject = this._connectReject;
+    this._connectResolve = null;
+    this._connectReject = null;
+    this._connectionPromise = null;
+    if (error) reject?.(new Error(error));
+    else resolve?.();
+  }
+
+  _connectionFailed(message) {
+    const wasConnected = this.connected;
+    this.connected = false;
+    this._epoch++;
+    this._settleConnect(message);
+    this._rejectAllPending(message);
+    this.worker?.terminate();
+    this.worker = null;
+    if (wasConnected) this._tryReconnect();
+  }
+
   _doConnect() {
-    return new Promise((resolve, reject) => {
+    if (this._connectionPromise) return this._connectionPromise;
+    this._connectionPromise = new Promise((resolve, reject) => {
       this._connectResolve = resolve;
       this._connectReject = reject;
-
-      if (this.worker) {
-        this.worker.terminate();
-      }
-
-      this.worker = new Worker(new URL("./sftp.worker.js", import.meta.url));
-
-      this.worker.onmessage = (ev) => this._onWorkerMessage(ev.data);
-      this.worker.onerror = (err) => {
-        if (!this.connected && this._connectReject) {
-          const rej = this._connectReject;
-          this._connectReject = null;
-          this._connectResolve = null;
-          rej(new Error("Worker error: " + err.message));
-        }
+    });
+    const pending = this._connectionPromise;
+    try {
+      const worker = new Worker(new URL("./sftp.worker.js", import.meta.url));
+      this.worker = worker;
+      worker.onmessage = (ev) => {
+        if (this.worker === worker) this._onWorkerMessage(ev.data);
       };
-
-      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      this.worker.postMessage({
+      worker.onerror = (err) => {
+        if (this.worker === worker)
+          this._connectionFailed("Worker error: " + err.message);
+      };
+      worker.postMessage({
         cmd: "connect",
         sessionID: this._sessionID,
         origin: location.host,
-        protocol: protocol,
+        protocol: location.protocol === "https:" ? "wss:" : "ws:",
       });
-    });
+    } catch (err) {
+      this._connectionFailed("Unable to start SFTP worker: " + err.message);
+    }
+    return pending;
   }
 
   _tryReconnect() {
@@ -73,6 +106,7 @@ export class SFTPClient {
         Math.min(this._reconnectAttempt, RECONNECT_DELAYS.length - 1)
       ];
     this._reconnectAttempt++;
+    const generation = this._reconnectGeneration;
 
     this._reconnectTimeoutId = setTimeout(() => {
       this._reconnectTimeoutId = null;
@@ -82,10 +116,12 @@ export class SFTPClient {
       }
       this._doConnect()
         .then(() => {
+          if (generation !== this._reconnectGeneration) return;
           this._reconnecting = false;
           this._reconnectAttempt = 0;
         })
         .catch(() => {
+          if (generation !== this._reconnectGeneration) return;
           this._reconnecting = false;
           this._tryReconnect();
         });
@@ -96,28 +132,13 @@ export class SFTPClient {
     switch (msg.type) {
       case "connected":
         this.connected = true;
-        if (this._connectResolve) {
-          const res = this._connectResolve;
-          this._connectResolve = null;
-          this._connectReject = null;
-          res();
-        }
+        this._settleConnect();
         break;
-
       case "connectError":
-        this.connected = false;
-        if (this._connectReject) {
-          const rej = this._connectReject;
-          this._connectReject = null;
-          this._connectResolve = null;
-          rej(new Error(msg.error));
-        }
+        this._connectionFailed(msg.error);
         break;
-
       case "disconnected":
-        this.connected = false;
-        this._rejectAllPending("SFTP connection lost");
-        this._tryReconnect();
+        this._connectionFailed("SFTP connection lost");
         break;
 
       case "response": {
@@ -157,7 +178,7 @@ export class SFTPClient {
 
   _request(obj) {
     return new Promise((resolve, reject) => {
-      if (!this.worker) {
+      if (!this.isConnected()) {
         reject(new Error("SFTP client not connected"));
         return;
       }
@@ -168,10 +189,14 @@ export class SFTPClient {
   }
 
   _enqueue(fn) {
-    const p = this._queue.then(
-      () => fn(),
-      () => fn(),
-    );
+    const epoch = this._epoch;
+    const run = () => {
+      if (epoch !== this._epoch || !this.isConnected()) {
+        throw new Error("SFTP connection closed");
+      }
+      return fn();
+    };
+    const p = this._queue.then(run, run);
     this._queue = p.catch(() => {});
     return p;
   }
@@ -223,10 +248,12 @@ export class SFTPClient {
           },
         });
 
+        const worker = this.worker;
         file
           .arrayBuffer()
           .then((buf) => {
-            this.worker.postMessage(
+            if (this.worker !== worker || !this._pending.has(id)) return;
+            worker.postMessage(
               {
                 cmd: "upload",
                 id: id,
@@ -258,6 +285,7 @@ export class SFTPClient {
 
   close() {
     this._intentionallyClosed = true;
+    this._reconnectGeneration++;
     if (this._reconnectTimeoutId) {
       clearTimeout(this._reconnectTimeoutId);
       this._reconnectTimeoutId = null;
@@ -269,8 +297,9 @@ export class SFTPClient {
     }
     this.connected = false;
     this._reconnecting = false;
-    this._pending.clear();
-    this._uploadProgressCallbacks.clear();
+    this._epoch++;
+    this._settleConnect("SFTP connection closed");
+    this._rejectAllPending("SFTP connection closed");
   }
 
   isConnected() {

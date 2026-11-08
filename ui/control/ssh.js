@@ -152,7 +152,7 @@ class Control {
     if (!this.sessionID) {
       throw new Error("No session ID available");
     }
-    this.sftpClient = new SFTPClient();
+    if (!this.sftpClient) this.sftpClient = new SFTPClient();
     await this.sftpClient.connect(this.sessionID);
     return this.sftpClient;
   }

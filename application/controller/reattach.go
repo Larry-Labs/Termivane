@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 
@@ -19,7 +18,6 @@ type reattachResponse struct {
 	User      string `json:"user"`
 	Cols      int    `json:"cols"`
 	Rows      int    `json:"rows"`
-	Buffer    string `json:"buffer"`
 }
 
 func (c reattachController) Options(
@@ -42,7 +40,6 @@ func (c reattachController) Get(
 		return NewError(http.StatusNotFound, "session not found or expired")
 	}
 
-	snapshot := ps.Output.Snapshot()
 	cols, rows := ps.Dimensions()
 
 	resp := reattachResponse{
@@ -51,7 +48,6 @@ func (c reattachController) Get(
 		User:      ps.User,
 		Cols:      cols,
 		Rows:      rows,
-		Buffer:    base64.StdEncoding.EncodeToString(snapshot),
 	}
 
 	data, err := json.Marshal(resp)

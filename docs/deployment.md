@@ -110,6 +110,24 @@ docker run -d \
 
 ## HTTPS / TLS
 
+### Optional server-side SSH identity
+
+`SSHWIFTY_SERVER_KEY_CONFIG` enables the explicit `Server Key` authentication
+method. Point it at a server-only JSON file with `user`, exact `address`
+(`IP:port`), absolute `key_file`, and `host_fingerprint` (SHA256 of the trusted
+ED25519 server host key). The private key must be a regular file, mode 0600
+or stricter, and mounted read-only. Never put it in Presets or a URL.
+
+The backend rejects unmatched users/addresses and mismatched SSH host keys.
+The browser receives no key contents, and reconnect tokens contain no private
+key. Keep the web endpoint authenticated: every user permitted to use this
+feature can act as the configured SSH user. Restrict direct backend access as
+well as the reverse-proxy endpoint. Existing Password and Private Key modes
+are unchanged.
+
+Example launcher (public connection metadata only):
+`https://terminal.example/#+SSH:root@192.0.2.1:22%7CServer%20Key%7Cutf-8`.
+
 ### 反向代理
 
 反向代理提供 HTTPS，Termivane 在宿主机 loopback 地址提供 HTTP。
@@ -183,3 +201,22 @@ docker compose up -d --build
 4. 区分 SSH 与 SFTP 的路径：密码/私钥登录使用独立 SFTP SSH 连接；交互式认证复用已认证 transport 上的独立 SFTP 通道。
 
 不要依赖 SSH WebSocket 内部的 AES-GCM 认证协议代替 HTTPS。保存到浏览器的密码使用可逆编码/混淆，不是独立密钥保护的密码库；只应在可信浏览器环境使用。
+
+## Session recovery and file transfers
+
+Browser refresh reattaches to the existing SSH process while that process is
+alive. Sessions have a 12-hour absolute lease from creation; refreshing the page
+does not extend it. A backend restart loses in-memory sessions. Failed recovery
+asks the user to reconnect explicitly instead of silently starting a new shell.
+Legacy reconnect requests remain supported for older clients, with their tokens
+bound to the original address, SSH user, and authentication method.
+
+Confirmed SSH host fingerprints are stored per endpoint in this browser and
+origin. Connection history is migrated when no endpoint record exists. Preset
+fingerprint expectations are kept separately; mismatches still require user
+confirmation. SFTP negotiates the already verified host key type and checks the
+same public key before authenticating.
+
+SFTP operations are ordered. Heartbeat replies cannot acknowledge file uploads;
+interrupted or size-mismatched transfers report failure. Closing a connection
+cancels pending and queued operations rather than leaving them waiting.

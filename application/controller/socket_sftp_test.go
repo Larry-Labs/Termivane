@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"errors"
 	"io"
 	"net"
@@ -46,7 +49,11 @@ func sftpTestSigner(t *testing.T) ssh.Signer {
 	return signer
 }
 
-func startSFTPTestSSH(t *testing.T) *sftpTestSSH {
+func startSFTPTestSSH(t *testing.T, extraKeys ...ssh.Signer) *sftpTestSSH {
+	return startSFTPTestSSHWithHandlers(t, sftp.InMemHandler(), extraKeys...)
+}
+
+func startSFTPTestSSHWithHandlers(t *testing.T, handlers sftp.Handlers, extraKeys ...ssh.Signer) *sftpTestSSH {
 	t.Helper()
 	signer := sftpTestSigner(t)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -62,6 +69,9 @@ func startSFTPTestSSH(t *testing.T) *sftpTestSSH {
 		return nil, nil
 	}}
 	config.AddHostKey(signer)
+	for _, key := range extraKeys {
+		config.AddHostKey(key)
+	}
 	var connections sync.Map
 	var workers sync.WaitGroup
 	acceptDone := make(chan struct{})
@@ -114,7 +124,7 @@ func startSFTPTestSSH(t *testing.T) *sftpTestSSH {
 									continue
 								}
 								_ = request.Reply(true, nil)
-								server := sftp.NewRequestServer(channel, sftp.InMemHandler())
+								server := sftp.NewRequestServer(channel, handlers)
 								_ = server.Serve()
 								_ = server.Close()
 								return
@@ -199,8 +209,9 @@ func TestSFTPIndependentConnectionChecksHostKeyBeforeAuthentication(t *testing.T
 			}
 			ws, done := openSFTPTestSocket(t, &commands.SessionInfo{
 				Address: fixture.listener.Addr().String(), User: "fixture",
-				AuthMethod: []ssh.AuthMethod{ssh.Password(sftpTestPassword)},
-				HostKey:    ssh.FixedHostKey(expected),
+				AuthMethod:        []ssh.AuthMethod{ssh.Password(sftpTestPassword)},
+				HostKey:           ssh.FixedHostKey(expected),
+				HostKeyAlgorithms: commands.VerifiedHostKeyAlgorithms(expected),
 			})
 			if !matching {
 				response := readSFTPTestResponse(t, ws, "error")
@@ -283,5 +294,153 @@ func TestSFTPReuseTransportDoesNotCloseExistingTerminal(t *testing.T) {
 	}
 	if n := fixture.auths.Load(); n != 1 {
 		t.Fatalf("authentication count = %d, want no repeated authentication", n)
+	}
+}
+
+func TestSFTPFollowsVerifiedKeyOnMultiKeyServer(t *testing.T) {
+	ec, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecSigner, err := ssh.NewSignerFromKey(ec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaSigner, err := ssh.NewSignerFromKey(rsaKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := startSFTPTestSSH(t, ecSigner, rsaSigner)
+	for _, key := range []ssh.PublicKey{fixture.key, ecSigner.PublicKey(), rsaSigner.PublicKey()} {
+		t.Run(key.Type(), func(t *testing.T) {
+			ws, done := openSFTPTestSocket(t, &commands.SessionInfo{
+				Address: fixture.listener.Addr().String(), User: "fixture",
+				AuthMethod:        []ssh.AuthMethod{ssh.Password(sftpTestPassword)},
+				HostKey:           ssh.FixedHostKey(key),
+				HostKeyAlgorithms: commands.VerifiedHostKeyAlgorithms(key),
+			})
+			readSFTPTestResponse(t, ws, "success")
+			if err := ws.WriteJSON(sftpWSRequest{Action: "list", Path: "/"}); err != nil {
+				t.Fatal(err)
+			}
+			readSFTPTestResponse(t, ws, "list")
+			_ = ws.Close()
+			waitSFTPTestHandler(t, done)
+		})
+	}
+}
+
+// The fixture writes into an in-memory filesystem; failures simulate remote storage errors.
+type failingSFTPWriter struct {
+	io.WriterAt
+	writeFail, closeFail bool
+}
+
+func (w *failingSFTPWriter) WriteAt(p []byte, off int64) (int, error) {
+	if w.writeFail {
+		return 0, errors.New("fixture disk full")
+	}
+	return w.WriterAt.WriteAt(p, off)
+}
+func (w *failingSFTPWriter) Close() error {
+	if c, ok := w.WriterAt.(io.Closer); ok {
+		if err := c.Close(); err != nil {
+			return err
+		}
+	}
+	if w.closeFail {
+		return errors.New("fixture close failed")
+	}
+	return nil
+}
+
+type failingSFTPFilePut struct {
+	base                 sftp.FileWriter
+	writeFail, closeFail bool
+}
+
+func (h failingSFTPFilePut) Filewrite(r *sftp.Request) (io.WriterAt, error) {
+	w, err := h.base.Filewrite(r)
+	if err != nil {
+		return nil, err
+	}
+	return &failingSFTPWriter{WriterAt: w, writeFail: h.writeFail, closeFail: h.closeFail}, nil
+}
+
+func TestSFTPUploadCompletionAndFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name                                    string
+		size                                    int64
+		data                                    []byte
+		writeFail, closeFail, omitDone, success bool
+	}{
+		{name: "complete", size: 3, data: []byte("abc"), success: true},
+		{name: "empty", size: 0, success: true},
+		{name: "truncated", size: 4, data: []byte("abc")},
+		{name: "oversized", size: 2, data: []byte("abc")},
+		{name: "nonempty-zero-size", size: 0, data: []byte("abc")},
+		{name: "close-failure", size: 3, data: []byte("abc"), closeFail: true},
+		{name: "write-failure-without-done", size: 65536, data: make([]byte, 65536), writeFail: true, omitDone: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handlers := sftp.InMemHandler()
+			handlers.FilePut = failingSFTPFilePut{base: handlers.FilePut, writeFail: tc.writeFail, closeFail: tc.closeFail}
+			fixture := startSFTPTestSSHWithHandlers(t, handlers)
+			ws, done := openSFTPTestSocket(t, &commands.SessionInfo{Address: fixture.listener.Addr().String(), User: "fixture", AuthMethod: []ssh.AuthMethod{ssh.Password(sftpTestPassword)}, HostKey: ssh.FixedHostKey(fixture.key)})
+			readSFTPTestResponse(t, ws, "success")
+			if err := ws.WriteJSON(sftpWSRequest{Action: "upload", Path: "/upload", Size: tc.size}); err != nil {
+				t.Fatal(err)
+			}
+			ready := readSFTPTestResponse(t, ws, "success")
+			if ready.Message != "ready" {
+				t.Fatal("missing ready")
+			}
+			if len(tc.data) > 0 {
+				if err := ws.WriteMessage(websocket.BinaryMessage, tc.data); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !tc.omitDone {
+				if err := ws.WriteJSON(sftpWSRequest{Action: "upload_done"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.success {
+				response := readSFTPTestResponse(t, ws, "success")
+				if response.Message != "ok" {
+					t.Fatal("missing completion")
+				}
+				if err := ws.WriteJSON(sftpWSRequest{Action: "list", Path: "/"}); err != nil {
+					t.Fatal(err)
+				}
+				listing := readSFTPTestResponse(t, ws, "list")
+				if len(listing.Files) != 1 || listing.Files[0].Size != tc.size {
+					t.Fatal("upload content size incorrect")
+				}
+			} else {
+				readSFTPTestResponse(t, ws, "error")
+				// Error acknowledgement happens only after partial-file cleanup.
+				check, checkDone := openSFTPTestSocket(t, &commands.SessionInfo{
+					Address: fixture.listener.Addr().String(), User: "fixture",
+					AuthMethod: []ssh.AuthMethod{ssh.Password(sftpTestPassword)},
+					HostKey:    ssh.FixedHostKey(fixture.key),
+				})
+				readSFTPTestResponse(t, check, "success")
+				if err := check.WriteJSON(sftpWSRequest{Action: "list", Path: "/"}); err != nil {
+					t.Fatal(err)
+				}
+				if len(readSFTPTestResponse(t, check, "list").Files) != 0 {
+					t.Fatal("partial upload retained")
+				}
+				_ = check.Close()
+				waitSFTPTestHandler(t, checkDone)
+			}
+			_ = ws.Close()
+			waitSFTPTestHandler(t, done)
+		})
 	}
 }

@@ -130,10 +130,11 @@ func (s sftpSocket) Get(
 	if !sessInfo.ReuseTransport {
 		var err error
 		sshConn, err = ssh.Dial("tcp", sessInfo.Address, &ssh.ClientConfig{
-			User:            sessInfo.User,
-			Auth:            sessInfo.AuthMethod,
-			HostKeyCallback: sessInfo.HostKey,
-			Timeout:         30 * time.Second,
+			User:              sessInfo.User,
+			Auth:              sessInfo.AuthMethod,
+			HostKeyCallback:   sessInfo.HostKey,
+			HostKeyAlgorithms: sessInfo.HostKeyAlgorithms,
+			Timeout:           30 * time.Second,
 		})
 		if err != nil {
 			sendJSON(ws, sftpWSResponse{Type: "error", Message: "SSH connect failed: " + err.Error()})
@@ -226,7 +227,9 @@ func (s sftpSocket) messageLoop(ws *websocket.Conn, client *sftp.Client, sshConn
 		case "download":
 			s.handleDownload(ws, client, req.Path, wsMu)
 		case "upload":
-			s.handleUpload(ws, client, sshConn, req.Path, req.Size, l, wsMu)
+			if !s.handleUpload(ws, client, sshConn, req.Path, req.Size, l, wsMu) {
+				return nil
+			}
 		default:
 			wsMu.Lock()
 			sendJSON(ws, sftpWSResponse{Type: "error", Message: "unknown action: " + req.Action})
@@ -351,26 +354,40 @@ func (s sftpSocket) handleDownload(ws *websocket.Conn, client *sftp.Client, path
 		return
 	}
 
-	wsMu.Lock()
-	sendJSON(ws, sftpWSResponse{Type: "download_start", Total: info.Size()})
-	wsMu.Unlock()
+	s.streamDownload(ws, f, info.Size(), wsMu)
+}
 
+// A download is complete only after EOF and the announced byte count agree.
+func (s sftpSocket) streamDownload(ws *websocket.Conn, source io.Reader, size int64, wsMu *sync.Mutex) {
+	wsMu.Lock()
+	err := sendJSON(ws, sftpWSResponse{Type: "download_start", Total: size})
+	wsMu.Unlock()
+	if err != nil {
+		return
+	}
+	var total int64
 	buf := make([]byte, 256*1024)
 	for {
-		n, rErr := f.Read(buf)
+		n, readErr := source.Read(buf)
+		total += int64(n)
+		if total > size || (readErr != nil && readErr != io.EOF) || (readErr == io.EOF && total != size) {
+			wsMu.Lock()
+			sendJSON(ws, sftpWSResponse{Type: "error", Message: "download failed: incomplete or unreadable remote file"})
+			wsMu.Unlock()
+			return
+		}
 		if n > 0 {
 			wsMu.Lock()
-			wErr := ws.WriteMessage(websocket.BinaryMessage, buf[:n])
+			err = ws.WriteMessage(websocket.BinaryMessage, buf[:n])
 			wsMu.Unlock()
-			if wErr != nil {
+			if err != nil {
 				return
 			}
 		}
-		if rErr != nil {
+		if readErr == io.EOF {
 			break
 		}
 	}
-
 	wsMu.Lock()
 	sendJSON(ws, sftpWSResponse{Type: "download_end"})
 	wsMu.Unlock()
@@ -499,92 +516,88 @@ func (rl *adaptiveRateLimiter) Close() {
 	rl.ticker.Stop()
 }
 
-func (s sftpSocket) handleUpload(ws *websocket.Conn, client *sftp.Client, sshConn *ssh.Client, path string, size int64, l log.Logger, wsMu *sync.Mutex) {
+// handleUpload owns the WebSocket reader until upload_done. On failure before
+// that boundary, the connection must close rather than interpreting queued file
+// frames as a new operation. File.Write retains SFTP packet concurrency while
+// applying backpressure to each bounded WebSocket frame.
+func (s sftpSocket) handleUpload(ws *websocket.Conn, client *sftp.Client, sshConn *ssh.Client, path string, size int64, l log.Logger, wsMu *sync.Mutex) bool {
+	send := func(resp sftpWSResponse) error {
+		wsMu.Lock()
+		defer wsMu.Unlock()
+		return sendJSON(ws, resp)
+	}
+	if size < 0 {
+		_ = send(sftpWSResponse{Type: "error", Message: "invalid upload size"})
+		return true
+	}
 	f, err := client.Create(path)
 	if err != nil {
-		wsMu.Lock()
-		sendJSON(ws, sftpWSResponse{Type: "error", Message: err.Error()})
-		wsMu.Unlock()
-		return
+		_ = send(sftpWSResponse{Type: "error", Message: err.Error()})
+		return true
 	}
-
-	wsMu.Lock()
-	sendJSON(ws, sftpWSResponse{Type: "success", Message: "ready"})
-	wsMu.Unlock()
-
-	pr, pw := io.Pipe()
-	rlw := newAdaptiveRateLimiter(pw, sshConn)
-
-	wsErr := make(chan error, 1)
-	go func() {
-		var pipeErr error
-		defer func() {
-			rlw.Close()
-			if pipeErr != nil {
-				pw.CloseWithError(pipeErr)
-			} else {
-				pw.Close()
+	fileClosed := false
+	closeFile := func() error {
+		if fileClosed {
+			return nil
+		}
+		fileClosed = true
+		return f.Close()
+	}
+	fail := func(err error, boundary bool) bool {
+		_ = closeFile()
+		// Preserve the existing cleanup policy for failed partial uploads.
+		_ = client.Remove(path)
+		_ = send(sftpWSResponse{Type: "error", Message: "upload failed: " + err.Error()})
+		return boundary
+	}
+	if err := send(sftpWSResponse{Type: "success", Message: "ready"}); err != nil {
+		return fail(err, false)
+	}
+	rlw := newAdaptiveRateLimiter(f, sshConn)
+	defer rlw.Close()
+	var totalWritten int64
+	for {
+		mt, msg, err := ws.ReadMessage()
+		if err != nil {
+			return fail(err, false)
+		}
+		switch mt {
+		case websocket.BinaryMessage:
+			if int64(len(msg)) > size-totalWritten {
+				return fail(io.ErrUnexpectedEOF, false)
 			}
-			wsErr <- pipeErr
-		}()
-		for {
-			mt, msg, rErr := ws.ReadMessage()
-			if rErr != nil {
-				pipeErr = rErr
-				return
+			n, err := rlw.Write(msg)
+			totalWritten += int64(n)
+			if err != nil {
+				return fail(err, false)
 			}
-			if mt == websocket.TextMessage {
-				var req sftpWSRequest
-				if json.Unmarshal(msg, &req) == nil {
-					if req.Action == "upload_done" {
-						return
-					}
-					if req.Action == "ping" {
-						wsMu.Lock()
-						sendJSON(ws, sftpWSResponse{Type: "pong"})
-						wsMu.Unlock()
-						continue
-					}
+			if n != len(msg) {
+				return fail(io.ErrShortWrite, false)
+			}
+		case websocket.TextMessage:
+			var req sftpWSRequest
+			if json.Unmarshal(msg, &req) != nil {
+				return fail(io.ErrUnexpectedEOF, false)
+			}
+			switch req.Action {
+			case "ping":
+				if err := send(sftpWSResponse{Type: "pong"}); err != nil {
+					return fail(err, false)
 				}
-				pipeErr = io.ErrUnexpectedEOF
-				return
-			}
-			if mt == websocket.BinaryMessage {
-				if _, wErr := rlw.Write(msg); wErr != nil {
-					pipeErr = wErr
-					return
+			case "upload_done":
+				if totalWritten != size {
+					l.Warning("SFTP upload size mismatch: expected %d, got %d", size, totalWritten)
+					return fail(io.ErrUnexpectedEOF, true)
 				}
+				if err := closeFile(); err != nil {
+					return fail(err, true)
+				}
+				return send(sftpWSResponse{Type: "success", Message: "ok"}) == nil
+			default:
+				return fail(io.ErrUnexpectedEOF, false)
 			}
 		}
-	}()
-
-	totalWritten, copyErr := f.ReadFromWithConcurrency(pr, 64)
-	f.Close()
-
-	wErr := <-wsErr
-
-	if copyErr != nil && copyErr != io.EOF && copyErr != io.ErrUnexpectedEOF {
-		wsMu.Lock()
-		sendJSON(ws, sftpWSResponse{Type: "error", Message: "upload failed: " + copyErr.Error()})
-		wsMu.Unlock()
-		client.Remove(path)
-		return
 	}
-	if wErr != nil {
-		wsMu.Lock()
-		sendJSON(ws, sftpWSResponse{Type: "error", Message: "upload failed: " + wErr.Error()})
-		wsMu.Unlock()
-		client.Remove(path)
-		return
-	}
-
-	if size > 0 && totalWritten != size {
-		l.Warning("SFTP upload size mismatch: expected %d, got %d for %s", size, totalWritten, path)
-	}
-
-	wsMu.Lock()
-	sendJSON(ws, sftpWSResponse{Type: "success", Message: "ok"})
-	wsMu.Unlock()
 }
 
 func sendJSON(ws *websocket.Conn, resp sftpWSResponse) error {

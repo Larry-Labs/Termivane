@@ -4,17 +4,17 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"sync"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
 type SessionInfo struct {
-	Client     *ssh.Client
-	Address    string
-	User       string
-	AuthMethod []ssh.AuthMethod
-	HostKey    ssh.HostKeyCallback
+	Client            *ssh.Client
+	Address           string
+	User              string
+	AuthMethod        []ssh.AuthMethod
+	HostKey           ssh.HostKeyCallback
+	HostKeyAlgorithms []string
 	// Interactive challenges cannot be replayed on a second SSH connection.
 	ReuseTransport bool
 }
@@ -56,63 +56,7 @@ func GenerateSessionID() string {
 type ReconnectInfo struct {
 	Address    string
 	User       string
-	Credential string
 	AuthMethod string
-	ExpiresAt  time.Time
-}
-
-var GlobalReconnectTokens = &ReconnectRegistry{}
-
-type ReconnectRegistry struct {
-	m           sync.Map
-	cleanupOnce sync.Once
-}
-
-func (r *ReconnectRegistry) Register(token string, info *ReconnectInfo) {
-	r.m.Store(token, info)
-}
-
-func (r *ReconnectRegistry) Get(token string) (*ReconnectInfo, bool) {
-	v, ok := r.m.Load(token)
-	if !ok {
-		return nil, false
-	}
-	info, ok := v.(*ReconnectInfo)
-	if !ok || info == nil {
-		return nil, false
-	}
-	if time.Now().After(info.ExpiresAt) {
-		r.m.Delete(token)
-		return nil, false
-	}
-	return info, true
-}
-
-func (r *ReconnectRegistry) Unregister(token string) {
-	r.m.Delete(token)
-}
-
-func (r *ReconnectRegistry) Cleanup() {
-	now := time.Now()
-	r.m.Range(func(key, value interface{}) bool {
-		info, ok := value.(*ReconnectInfo)
-		if !ok || info == nil || now.After(info.ExpiresAt) {
-			r.m.Delete(key)
-		}
-		return true
-	})
-}
-
-func (r *ReconnectRegistry) StartCleanupLoop() {
-	r.cleanupOnce.Do(func() {
-		go func() {
-			ticker := time.NewTicker(5 * time.Minute)
-			defer ticker.Stop()
-			for range ticker.C {
-				r.Cleanup()
-			}
-		}()
-	})
 }
 
 func GenerateReconnectToken() string {
@@ -121,4 +65,17 @@ func GenerateReconnectToken() string {
 		panic("crypto/rand failed: " + err.Error())
 	}
 	return hex.EncodeToString(b)
+}
+
+// VerifiedHostKeyAlgorithms restricts reconnects to the already trusted key type.
+// RSA key types differ from their SHA-2 signature algorithm names.
+func VerifiedHostKeyAlgorithms(key ssh.PublicKey) []string {
+	switch key.Type() {
+	case ssh.KeyAlgoRSA:
+		return []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256}
+	case ssh.CertAlgoRSAv01:
+		return []string{ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSASHA256v01}
+	default:
+		return []string{key.Type()}
+	}
 }
