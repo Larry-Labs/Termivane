@@ -22,7 +22,7 @@ const (
 	Name     = "Termivane"
 	FullName = "Termivane Web SSH & SFTP"
 	Author   = "Ni Rui <ranqus@gmail.com>"
-	URL      = "https://github.com/Larry-Labs/sshwifty"
+	URL      = "https://github.com/Larry-Labs/Termivane"
 )
 
 // Banner message

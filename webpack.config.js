@@ -363,12 +363,12 @@ export default {
         },
       },
       new WebpackFavicons({
-        src: path.join(__dirname, "ui", "sshwifty.svg"),
+        src: path.join(__dirname, "docs", "assets", "termivane-logo.png"),
         appName: "Termivane SSH Client",
         appShortName: "Termivane",
-        appDescription: "Web SSH Client",
-        developerName: "Ni Rui",
-        developerURL: "https://nirui.org",
+        appDescription: "Browser SSH workspace with persistent sessions and SFTP",
+        developerName: "Larry Labs",
+        developerURL: "https://github.com/Larry-Labs/Termivane",
         background: "#333",
         theme_color: "#333",
         appleStatusBarStyle: "black",
@@ -389,7 +389,7 @@ export default {
         meta: [
           {
             name: "description",
-            content: "Connect to a SSH Server from your web browser",
+            content: "Self-hosted browser SSH workspace with persistent sessions and integrated SFTP",
           },
         ],
         mobile: true,
@@ -411,7 +411,7 @@ export default {
         meta: [
           {
             name: "description",
-            content: "Connect to a SSH Server from your web browser",
+            content: "Self-hosted browser SSH workspace with persistent sessions and integrated SFTP",
           },
         ],
         mobile: true,

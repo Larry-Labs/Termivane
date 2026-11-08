@@ -306,7 +306,8 @@ ui/**                     npm run generate
 ├── *.vue                 ├── webpack --mode production       .tmp/dist/
 ├── *.js                  │   ├── babel 转译                  ├── app-*.js
 ├── *.css                 │   ├── vue-loader                  ├── app-*.css
-└── sshwifty.svg          │   ├── favicon 生成                ├── *.png/ico
+docs/assets/              │   ├── favicon 生成                ├── *.png/ico
+└── termivane-logo.png     │   │
                           │   ├── CSS/JS 压缩                 └── index.html
                           │   └── 图片优化 (sharp)
                           │

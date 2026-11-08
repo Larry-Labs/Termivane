@@ -9,8 +9,8 @@
 需要 Git、Node.js/npm 和 Go。Go 版本以 [`go.mod`](../go.mod) 为准；当前要求 **Go 1.27.3**。前端依赖使用仓库锁文件安装：
 
 ```bash
-git clone https://github.com/Larry-Labs/sshwifty.git
-cd sshwifty
+git clone https://github.com/Larry-Labs/Termivane.git
+cd Termivane
 npm ci
 npm run build
 

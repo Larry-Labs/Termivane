@@ -67,7 +67,7 @@
           <p>
             Termivane is free software, you can deploy it on your own trusted
             infrastructure.
-            <a href="https://github.com/Larry-Labs/sshwifty" target="_blank"
+            <a href="https://github.com/Larry-Labs/Termivane" target="_blank"
               >Learn more</a
             >
           </p>

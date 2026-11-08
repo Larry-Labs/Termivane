@@ -22,7 +22,7 @@ Termivane 将 SSH 终端和远程文件管理放在同一个浏览器工作区�
 
 这是 [nirui/sshwifty](https://github.com/nirui/sshwifty) 的 **Larry Labs 分支**，加入了持久化会话、SFTP 文件管理及终端界面定制。本分支聚焦 SSH，已移除 Telnet。
 
-Termivane 由 **Terminal（终端）**与 **Vane（风向标）**组合而成，中文可称「终端航标」。为保持兼容，仓库地址、`sshwifty` 可执行文件、`SSHWIFTY_*` 配置和浏览器存储键继续沿用原名。
+Termivane 由 **Terminal（终端）**与 **Vane（风向标）**组合而成，中文可称「终端航标」。为保持兼容，`sshwifty` 可执行文件、`SSHWIFTY_*` 配置和浏览器存储键继续沿用原名。
 
 ![Termivane 终端与内置 SFTP 文件面板](docs/assets/workspace.png)
 
@@ -57,8 +57,8 @@ Termivane 由 **Terminal（终端）**与 **Vane（风向标）**组合而成，
 ### 编译
 
 ```bash
-git clone https://github.com/Larry-Labs/sshwifty.git
-cd sshwifty
+git clone https://github.com/Larry-Labs/Termivane.git
+cd Termivane
 npm ci
 npm run build
 ```
@@ -138,6 +138,6 @@ npm run testonly
 
 ## 致谢与许可证
 
-本项目基于 [Ni Rui](https://github.com/nirui) 创建的 [Sshwifty](https://github.com/nirui/sshwifty)。分支增强功能维护于 [Larry-Labs/sshwifty](https://github.com/Larry-Labs/sshwifty)。
+本项目基于 [Ni Rui](https://github.com/nirui) 创建的 [Sshwifty](https://github.com/nirui/sshwifty)。分支增强功能维护于 [Larry-Labs/Termivane](https://github.com/Larry-Labs/Termivane)。
 
 采用 **GNU Affero General Public License v3**，完整条款见 [LICENSE.md](LICENSE.md)。第三方声明见 [DEPENDENCIES.md](DEPENDENCIES.md)，依赖版本以 [go.mod](go.mod) 和 [package-lock.json](package-lock.json) 为准。

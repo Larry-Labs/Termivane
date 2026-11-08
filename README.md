@@ -22,7 +22,7 @@ Termivane brings SSH terminals and remote file management into one browser works
 
 This is the **Larry Labs fork** of [nirui/sshwifty](https://github.com/nirui/sshwifty), with persistent sessions, integrated SFTP, and a customized terminal interface. It focuses on SSH; Telnet has been removed from this fork.
 
-Termivane combines **terminal** and **vane**: a point of direction for remote work. The repository URL, `sshwifty` executable, `SSHWIFTY_*` settings, and browser storage keys retain their existing names for compatibility.
+Termivane combines **terminal** and **vane**: a point of direction for remote work. The `sshwifty` executable, `SSHWIFTY_*` settings, and browser storage keys retain their existing names for compatibility.
 
 ![Termivane terminal with its integrated SFTP file panel](docs/assets/workspace.png)
 
@@ -57,8 +57,8 @@ Password and private-key SFTP transfers use an independent SSH connection pinned
 ### Build
 
 ```bash
-git clone https://github.com/Larry-Labs/sshwifty.git
-cd sshwifty
+git clone https://github.com/Larry-Labs/Termivane.git
+cd Termivane
 npm ci
 npm run build
 ```
@@ -138,6 +138,6 @@ The deployment and architecture guides are currently in Chinese; the fixture gui
 
 ## Credits and license
 
-Based on [Sshwifty](https://github.com/nirui/sshwifty), created by [Ni Rui](https://github.com/nirui). Fork enhancements are maintained in [Larry-Labs/sshwifty](https://github.com/Larry-Labs/sshwifty).
+Based on [Sshwifty](https://github.com/nirui/sshwifty), created by [Ni Rui](https://github.com/nirui). Fork enhancements are maintained in [Larry-Labs/Termivane](https://github.com/Larry-Labs/Termivane).
 
 Licensed under the **GNU Affero General Public License v3**. See [LICENSE.md](LICENSE.md). Third-party notices are listed in [DEPENDENCIES.md](DEPENDENCIES.md); dependency versions are recorded in [go.mod](go.mod) and [package-lock.json](package-lock.json).

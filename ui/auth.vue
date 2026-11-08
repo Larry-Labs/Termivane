@@ -49,7 +49,7 @@
                 class="message"
               >
                 A valid password is required in order to use this
-                <a href="https://github.com/Larry-Labs/sshwifty">Termivane</a>
+                <a href="https://github.com/Larry-Labs/Termivane">Termivane</a>
                 instance
               </div>
               <div v-else class="error">
