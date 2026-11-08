@@ -37,8 +37,6 @@ const backendQueryRetryDelay = 2000;
 
 const maxTimeDiff = 30000;
 
-const updateIndicatorMaxDisplayTime = 3000;
-
 const AUTH_STORAGE_KEY = "sshwifty_auth_passphrase";
 const AUTH_EXPIRY_KEY = "sshwifty_auth_expiry";
 // Match reconnect token TTL (12 hours)
@@ -91,9 +89,7 @@ const mainTemplate = `
   :restricted-to-presets="presetData.restricted"
   :view-port="viewPort"
   @navigate-to="changeURLHash"
-  @tab-opened="tabOpened"
-  @tab-closed="tabClosed"
-  @tab-updated="tabUpdated"
+  @title-changed="changeTitleInfo"
 ></home>
 <auth
   v-else-if="page == 'auth'"
@@ -108,7 +104,7 @@ const socksVerificationInterface = socksInterface + "/verify";
 const socksKeyTimeTruncater = 100 * 1000;
 
 function startApp(rootEl) {
-  const pageTitle = document.title;
+  document.title = "Termivane";
 
   let uiControlColors = new ControlColors();
 
@@ -158,7 +154,6 @@ function startApp(rootEl) {
         socket: null,
         controls: new Controls([new sshctl.SSH(uiControlColors)]),
         commands: new Commands([new ssh.Command()]),
-        tabUpdateIndicator: null,
         viewPort: {
           dim: {
             width: 0,
@@ -212,10 +207,7 @@ function startApp(rootEl) {
     },
     methods: {
       changeTitleInfo(newTitleInfo) {
-        document.title = newTitleInfo + " " + pageTitle;
-      },
-      resetTitleInfo() {
-        document.title = pageTitle;
+        document.title = newTitleInfo;
       },
       changeURLHash(newHash) {
         window.location.hash = newHash;
@@ -436,45 +428,6 @@ function startApp(rootEl) {
         } catch (e) {
           this.authErr = "Unable to authenticate: " + e;
         }
-      },
-      updateTabTitleInfo(tabs, updated) {
-        if (tabs.length <= 0) {
-          this.resetTitleInfo();
-
-          return;
-        }
-
-        this.changeTitleInfo("(" + tabs.length + (updated ? "*" : "") + ")");
-      },
-      tabOpened(tabs) {
-        this.tabUpdated(tabs);
-      },
-      tabClosed(tabs) {
-        if (tabs.length > 0) {
-          this.updateTabTitleInfo(tabs, this.tabUpdateIndicator !== null);
-
-          return;
-        }
-
-        if (this.tabUpdateIndicator) {
-          clearTimeout(this.tabUpdateIndicator);
-          this.tabUpdateIndicator = null;
-        }
-
-        this.updateTabTitleInfo(tabs, false);
-      },
-      tabUpdated(tabs) {
-        if (this.tabUpdateIndicator) {
-          clearTimeout(this.tabUpdateIndicator);
-          this.tabUpdateIndicator = null;
-        }
-
-        this.updateTabTitleInfo(tabs, true);
-
-        this.tabUpdateIndicator = setTimeout(() => {
-          this.tabUpdateIndicator = null;
-          this.updateTabTitleInfo(tabs, false);
-        }, updateIndicatorMaxDisplayTime);
       },
     },
   });

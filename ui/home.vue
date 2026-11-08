@@ -149,6 +149,7 @@ import ConnectWidget from "./widgets/connect.vue";
 import StatusWidget from "./widgets/status.vue";
 import Connector from "./widgets/connector.vue";
 import Tabs from "./widgets/tabs.vue";
+import { sessionPageTitle } from "./session_title.js";
 import TabWindow from "./widgets/tab_window.vue";
 import Screens from "./widgets/screens.vue";
 
@@ -258,6 +259,19 @@ export default {
         tabs: [],
       },
     };
+  },
+  computed: {
+    pageTitle() {
+      return sessionPageTitle(this.tab.tabs[this.tab.current]);
+    },
+  },
+  watch: {
+    pageTitle: {
+      immediate: true,
+      handler(title) {
+        this.$emit("title-changed", title);
+      },
+    },
   },
   mounted() {
     this.ticker = setInterval(() => {
@@ -867,6 +881,7 @@ export default {
           },
           status: {
             closing: false,
+            disconnected: false,
           },
         }) - 1,
       );
@@ -918,6 +933,7 @@ export default {
     },
     tabStopped(index, reason) {
       if (index < 0 || index >= this.tab.tabs.length) return;
+      this.tab.tabs[index].status.disconnected = true;
       if (reason !== null) {
         this.tab.tabs[index].indicator.message = "" + reason;
         this.tab.tabs[index].indicator.level = "error";
