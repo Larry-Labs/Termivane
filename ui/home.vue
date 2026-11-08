@@ -20,9 +20,7 @@
 <template>
   <div id="home" :class="{ 'home-restoring': reconnecting }">
     <header id="home-header">
-      <h1 id="home-hd-title">
-        Termivane <span id="home-hd-author">by Larry Gao</span>
-      </h1>
+      <h1 id="home-hd-title">Termivane</h1>
 
       <a id="home-hd-delay" href="javascript:;" @click="showDelayWindow">
         <span
