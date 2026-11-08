@@ -92,7 +92,8 @@
 
 #home-hd-title {
   font-size: 1.1em;
-  padding: 0 0 0 20px;
+  padding: 0 0 0 16px;
+  margin: 0;
   font-weight: bold;
   flex: 0 0 auto;
   text-align: center;
@@ -100,20 +101,15 @@
   white-space: nowrap;
 }
 
-#home-hd-author {
-  font-size: 0.6em;
-  font-weight: normal;
-  color: #999;
-  margin-left: 2px;
-}
-
 #home-hd-delay {
   font-size: 0.95em;
   display: flex;
-  flex: 0 0 70px;
+  flex: 0 1 auto;
+  min-width: 24px;
+  max-width: 100px;
   flex-direction: row;
   overflow: hidden;
-  margin: 0 10px;
+  margin: 0 12px;
   color: #aaa;
   text-decoration: none;
   justify-items: center;
@@ -126,12 +122,9 @@
     padding: 0 0 0 10px;
   }
 
-  #home-hd-author {
-    display: none;
-  }
-
   #home-hd-delay {
-    flex: 0 0 60px;
+    margin: 0 8px;
+    max-width: 80px;
   }
 }
 
