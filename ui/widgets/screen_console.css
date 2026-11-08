@@ -175,7 +175,7 @@
   > .console-loading
   > .console-loading-frame
   > .console-loading-icon {
-  background: url(./busy.svg) 50% no-repeat;
+  background: url("../../docs/assets/termivane-logo.png") center / 80px 80px no-repeat;
   width: 100%;
   height: 100px;
 }

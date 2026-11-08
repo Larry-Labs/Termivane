@@ -53,10 +53,11 @@ body.app-error .app-error-message {
 }
 
 #app-loading-icon {
-  background: url("./widgets/busy.svg") center center no-repeat;
-  background-size: contain;
-  width: 100%;
-  height: 200px;
+  background: url("../docs/assets/termivane-logo.png") center / contain no-repeat;
+  width: 128px;
+  height: 128px;
+  margin: 0 auto 32px;
+  border-radius: 20px;
 }
 
 #app-loading-error {
